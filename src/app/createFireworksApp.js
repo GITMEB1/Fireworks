@@ -17,7 +17,7 @@ export function createFireworksApp({ canvas, hintEl, statusEl, configOverrides =
 
   const engine = createEngine({ config, palettes: PALETTES, state });
   const backgroundRenderer = createBackgroundRenderer({ canvas, ctx, config, state });
-  const renderer = createRenderer({ ctx, backgroundRenderer, activePointers: state.activePointers, config });
+  const renderer = createRenderer({ ctx, backgroundRenderer, activePointers: state.activePointers, config, state });
   const resizeSystem = createResizeSystem({ canvas, ctx, state, backgroundRenderer });
   const qualitySystem = createQualitySystem({ config, state, statusEl });
 
