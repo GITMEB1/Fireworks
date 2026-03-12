@@ -43,7 +43,8 @@ export const CONFIG = {
   shellWeights: {
     peony: 1.2, willow: 1.0, ring: 0.9, crossette: 0.8,
     crackle: 0.9, palm: 0.8, spiral: 0.7, brocade: 0.78,
-    ghost: 0.62, doubleBreak: 0.68
+    ghost: 0.62, doubleBreak: 0.68,
+    heart: 0.8, star: 0.7, smiley: 0.6
   }
 };
 

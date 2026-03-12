@@ -1,0 +1,20 @@
+runs:
+  - run_id: "20260312-discovery"
+    date: "2026-03-12"
+    opportunities_found: 8
+    top_leverage_item: "Combo / Fever State System (Leverage: 2.5) & New Shell Shapes (Leverage: 3.0)"
+    escalations: []
+    lessons:
+      - "The browser subagent failed due to upstream server strain, so Playtest Stage 2 was performed via deep structural inference from `walkthrough.md` and logic code. Code-inferred playtesting proved sufficient for generating UI/UX enhancement ideas."
+      - "The Web Audio API (OscillatorNode) is a glaring omission in this codebase that must be addressed to match the visual 'juice' already implemented."
+      - "Model prior is acceptable for identifying standard arcade game patterns (like Combo Chains), but practitioner references from Vlambeer were much more useful for specific effects (like persistent haze vs. sharp flashes)."
+    tech_debt: "Browser testing for Stage 2 was skipped; verify actual feeling on a live device when implementing the proposed Fever State."
+  - run_id: "20260312-discovery-run3"
+    date: "2026-03-12"
+    opportunities_found: 8
+    top_leverage_item: "Supernova Micro-Pause (Game Feel 'Sleep')"
+    escalations: []
+    lessons:
+      - "Playtesting via browser subagent successfully identified the retention drop-off point where visual novelty wears thin without deeper mechanics."
+      - "Browser particle simulator rendering limits (Canvas 2D vs WebGPU) remain the primary architectural bottleneck."
+      - "Vlambeer's 'The Art of Screenshake' continues to yield high-leverage, low-effort drops (like the Micro-Pause) that drastically improve game feel."

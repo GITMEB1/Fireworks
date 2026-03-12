@@ -1,0 +1,6 @@
+task_id: T-20260312-discovery-run2
+objective: "Identify high-leverage enhancement and feature opportunities in the Fireworks simulator, factoring in the recently added Fever State and New Shell Shapes."
+risk_level: medium
+freshness_level: moderate
+audience: "Developer + product owner"
+mode: deep

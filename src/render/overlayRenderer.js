@@ -1,6 +1,6 @@
 import { rand, rgba, smoothstep01 } from '../core/utils.js';
 
-export function renderChargeVisuals({ ctx, now, activePointers, config }) {
+export function renderChargeVisuals({ ctx, now, activePointers, config, engine }) {
   ctx.globalCompositeOperation = 'lighter';
   activePointers.forEach((p) => {
     const duration = now - p.startTime;
@@ -73,6 +73,80 @@ export function renderChargeVisuals({ ctx, now, activePointers, config }) {
       ctx.lineTo(p.x + Math.cos(sAng) * (sDist - sLen), p.y + Math.sin(sAng) * (sDist - sLen));
       ctx.stroke();
     }
+
+    // Trajectory arc visual for slingshot aiming
+    if (engine && engine.state && p.targetX !== undefined && !isDead) {
+      const dist = Math.hypot(p.targetX - p.startX, p.targetY - p.startY);
+      if (dist > 10) {
+        const sx = p.launchX;
+        const sy = engine.state.height + 24;
+        const tx = p.targetX;
+        const ty = p.targetY;
+        
+        const prestige = chargeState === 'perfect';
+        const timeToTarget = 48 * (prestige ? 1.05 : 1);
+        const vx = (tx - sx) / timeToTarget;
+        const vy = (ty - sy) / timeToTarget - 0.5 * config.gravity * timeToTarget;
+        
+        ctx.beginPath();
+        ctx.moveTo(sx, sy);
+        let cx = sx, cy = sy, cvy = vy;
+        
+        if (ctx.setLineDash) ctx.setLineDash([4, 8]);
+        ctx.strokeStyle = rgba(coreC, Math.max(0.15, ease * 0.7));
+        ctx.lineWidth = 1.5 + ease * 1.5;
+        
+        for (let i = 1; i <= timeToTarget; i++) {
+           cvy += config.gravity;
+           cx += vx;
+           cy += cvy;
+           ctx.lineTo(cx, cy);
+        }
+        ctx.stroke();
+        if (ctx.setLineDash) ctx.setLineDash([]);
+        
+        // Target crosshair
+        ctx.beginPath();
+        ctx.moveTo(tx - 10, ty); ctx.lineTo(tx + 10, ty);
+        ctx.moveTo(tx, ty - 10); ctx.lineTo(tx, ty + 10);
+        ctx.lineWidth = 2 + ease;
+        ctx.strokeStyle = rgba(isWhiteHot ? '255,255,255' : coreC, 0.4 + 0.6 * ease);
+        ctx.stroke();
+      }
+    }
   });
+  
+  // Render Combo / Fever UI Overlay
+  if (engine && engine.state) {
+      if (engine.state.combo > 0) {
+          ctx.fillStyle = rgba('255,255,255', 0.8 + Math.sin(now * 0.01) * 0.2);
+          ctx.font = 'bold 24px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(`${engine.state.combo}x PERFECT`, engine.state.width / 2, 60);
+      }
+
+      if (engine.state.feverTimer > 0) {
+          const feverProgress = engine.state.feverTimer / engine.state.feverDuration;
+          const alpha = Math.min(1, feverProgress * 2); 
+          ctx.fillStyle = rgba('255,' + Math.floor(200 + Math.sin(now * 0.02) * 55) + ',100', alpha);
+          ctx.font = 'bold 48px sans-serif';
+          ctx.textAlign = 'center';
+          
+          // Draw pulsing Fever text
+          const scale = 1 + Math.sin(now * 0.015) * 0.05;
+          ctx.save();
+          ctx.translate(engine.state.width / 2, 120);
+          ctx.scale(scale, scale);
+          ctx.fillText('FEVER MODE', 0, 0);
+          ctx.restore();
+
+          // Draw timer bar
+          ctx.fillStyle = rgba('255,255,255', alpha * 0.5);
+          ctx.fillRect(engine.state.width / 2 - 100, 140, 200, 4);
+          ctx.fillStyle = rgba('255,200,100', alpha);
+          ctx.fillRect(engine.state.width / 2 - 100, 140, 200 * feverProgress, 4);
+      }
+  }
+
   ctx.globalCompositeOperation = 'source-over';
 }

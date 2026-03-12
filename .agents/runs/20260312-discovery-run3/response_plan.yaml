@@ -1,0 +1,26 @@
+plan:
+  rankings:
+    - id: "OPP-002"
+      leverage_score: 4.0
+      quadrant: "Quick Wins"
+      case: "Adding a tiny engine freeze-frame on supernova detonation is a classic 'Game Feel' trick that requires almost zero code. It provides massively disproportionate impact on the heaviness of the explosion."
+    
+    - id: "OPP-005"
+      leverage_score: 3.0
+      quadrant: "Quick Wins"
+      case: "Mobile users naturally try to multi-tap; supporting this natively takes the input system from frustratingly single-threaded to delightfully tactile in <50 lines."
+
+    - id: "OPP-008"
+      leverage_score: 3.0
+      quadrant: "Quick Wins"
+      case: "A subtly shifting lateral wind force stops the simulation from looking like a perfect, sterile sine wave, adding crucial organic realism to the physics."
+
+    - id: "OPP-001"
+      leverage_score: 1.66
+      quadrant: "Big Bets"
+      case: "Audio is the missing half of the experience; procedural synthesis avoids asset loading completely while providing immense emotional feedback during the charge and explosion cycle."
+    
+    - id: "OPP-004"
+      leverage_score: 1.25
+      quadrant: "Big Bets"
+      case: "Shifts the game loop from 'click to explode' to 'aim, charge, and release to explode in a specific spot,' turning a toy into a true arcade skill game."

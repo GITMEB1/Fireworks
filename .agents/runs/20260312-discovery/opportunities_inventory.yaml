@@ -1,0 +1,88 @@
+opportunities:
+  - id: "OPP-001"
+    title: "Procedural Audio Synthesizer (Web Audio API)"
+    source_stages: ["stage_2_playtest", "stage_4_platform_scan"]
+    file_anchor: "New `src/systems/audioSystem.js` tied to `src/core/engine.js`"
+    current_state: "The game has zero audio feedback."
+    proposed_state: "Use OscillatorNode to procedurally generate a rising 'charge' tone, a massive bass drop for Supernova, and a 'sad trombone' for Fizzle."
+    impact_hypothesis: "Critical — audio fundamentally anchors the hitstop and screen shake effects, multiplying their perceived impact."
+    effort_estimate: "M"
+    evidence_class: "practitioner + live_retrieval"
+    confidence: "high"
+
+  - id: "OPP-002"
+    title: "Orchestrated Multi-Launch (Salvos)"
+    source_stages: ["stage_1_architecture_audit", "stage_2_playtest"]
+    file_anchor: "src/patterns/launchPatterns.js"
+    current_state: "Players can only fire one shell per click, and auto-launcher fires randomly."
+    proposed_state: "Add a pattern where a specific gesture or UI button fires a structured salvo (e.g., V-shape or 5-shot burst) to orchestrate better finales."
+    impact_hypothesis: "High — reduces 'spam clicking' fatigue (Test E) by giving players a satisfying, structured release of particles."
+    effort_estimate: "S"
+    evidence_class: "model_prior"
+    confidence: "medium"
+
+  - id: "OPP-003"
+    title: "Persistent Smoke / Haze Overlay"
+    source_stages: ["stage_3_benchmarks"]
+    file_anchor: "src/render/backgroundRenderer.js and config.js"
+    current_state: "Smoke particles disappear cleanly, leaving no trace of massive explosions."
+    proposed_state: "Render a very low-opacity cumulative texture or persistent haze that builds up as you fire, giving permanence to the sky."
+    impact_hypothesis: "Medium — enhances the 'scarring' of the environment as recommended by Vlambeer game feel talks."
+    effort_estimate: "M"
+    evidence_class: "practitioner"
+    confidence: "high"
+
+  - id: "OPP-004"
+    title: "Combo / Fever State System"
+    source_stages: ["stage_2_playtest", "stage_3_benchmarks"]
+    file_anchor: "src/core/engine.js and src/render/overlayRenderer.js"
+    current_state: "No session state or score tracks consecutive Perfect Charges. The player drops off after 2-3 successful hits."
+    proposed_state: "Track consecutive Supernovas. After 3, enter a 'Fever State' where all shells are forced to prestige palettes and double particle limits temporarily."
+    impact_hypothesis: "High — directly addresses the primary retention drop-off identified in Stage 2 by adding a skill mastery curve."
+    effort_estimate: "L" # Logic is simple state management
+    evidence_class: "practitioner + model_prior"
+    confidence: "high"
+
+  - id: "OPP-005"
+    title: "Mobile Touch & Tilt Controls"
+    source_stages: ["stage_1_architecture_audit"]
+    file_anchor: "src/systems/inputSystem.js"
+    current_state: "Only pointer up/down events. No consideration for multi-touch or device tilt."
+    proposed_state: "Use `deviceorientation` to shift the `engine.config.gravity` vector based on phone tilt, and support multi-touch for simultaneous charges."
+    impact_hypothesis: "Medium — makes mobile play significantly more engaging than simple tapping."
+    effort_estimate: "S"
+    evidence_class: "model_prior"
+    confidence: "medium"
+
+  - id: "OPP-006"
+    title: "OffscreenCanvas Render Threading"
+    source_stages: ["stage_4_platform_scan"]
+    file_anchor: "src/app/createFireworksApp.js and src/render/*"
+    current_state: "All rendering blocks the main UI thread during massive explosions."
+    proposed_state: "Move the main particle rendering loop to a Web Worker via `OffscreenCanvas`."
+    impact_hypothesis: "Medium — prevents stuttering on lower-end devices during massive Supernova blooms."
+    effort_estimate: "L" (Requires significant async refactor)
+    evidence_class: "live_retrieval"
+    confidence: "high"
+
+  - id: "OPP-007"
+    title: "New Shell Shapes (Heart / Star)"
+    source_stages: ["stage_1_architecture_audit"]
+    file_anchor: "src/shells/registry.js"
+    current_state: "All shells are radial or spherical in distinct layers."
+    proposed_state: "Add parametrically generated distinct shapes (like a heart or smiley face) that orient randomly upon explosion."
+    impact_hypothesis: "Medium — adds visual delight and rarity (if given a low spawn weight)."
+    effort_estimate: "S"
+    evidence_class: "model_prior"
+    confidence: "medium"
+
+  - id: "OPP-008"
+    title: "Screen / Additive Blending Fixes"
+    source_stages: ["stage_2_playtest", "stage_3_benchmarks"]
+    file_anchor: "src/render/sceneRenderer.js"
+    current_state: "Too many overlapping flashes wash out the canvas completely (Test E chaos)."
+    proposed_state: "Separate the flash layer from the particle layer, applying `'lighter'` blending only to specific high-energy particles to preserve contrast."
+    impact_hypothesis: "Medium — cleans up visual noise during intense play."
+    effort_estimate: "S"
+    evidence_class: "practitioner"
+    confidence: "high"

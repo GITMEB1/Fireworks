@@ -1,0 +1,9 @@
+task_intel:
+  task_id: "T-20260312-discovery"
+  title: "Identify high-leverage enhancement and feature opportunities in the Fireworks simulator"
+  objective: "Run the canonical opportunity discovery workflow to produce a ranked, file-anchored feature brief."
+  audience: "Developer + product owner"
+  deliverable_type: "opportunity brief"
+  risk_level: "medium"
+  freshness_requirement: "moderate"
+  workflow_mode: "deep"

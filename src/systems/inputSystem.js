@@ -7,12 +7,43 @@ export function createInputSystem({ canvas, hintEl, statusEl, palettes, state, c
       hintEl.style.opacity = '0';
       statusEl.style.opacity = '1';
     }
-    state.activePointers.set(pointerId, { x, y, startTime: performance.now(), palette: pick(palettes) });
+    state.activePointers.set(pointerId, { 
+      startX: x, startY: y,
+      x, y, 
+      launchX: x + rand(-30, 30),
+      targetX: x, targetY: y,
+      startTime: performance.now(), 
+      palette: pick(palettes) 
+    });
   }
 
   function moveInteraction(pointerId, x, y) {
     const p = state.activePointers.get(pointerId);
     if (!p) return;
+    
+    // Slingshot logic: drag backwards to aim forwards
+    const dragX = p.startX - x;
+    const dragY = p.startY - y;
+    p.targetX = p.startX + dragX * 1.5;
+    p.targetY = Math.max(state.height * 0.1, p.startY + dragY * 1.5);
+
+    // Sparkler effect during drag (using current pointer x,y)
+    const dx = x - p.x;
+    const dy = y - p.y;
+    const dist = Math.hypot(dx, dy);
+    
+    if (dist > 2) {
+      const steps = Math.min(15, Math.floor(dist / 4));
+      const vx = dx * 0.05;
+      const vy = dy * 0.05;
+      for (let i = 1; i <= steps; i++) {
+        if (Math.random() < 0.6) continue;
+        const color = pick(p.palette);
+        const t = i / steps;
+        engine.spawnContinuousSpark(p.x + dx * t, p.y + dy * t, color, vx, vy);
+      }
+    }
+
     p.x = x; p.y = y;
   }
 
@@ -38,11 +69,14 @@ export function createInputSystem({ canvas, hintEl, statusEl, palettes, state, c
     }
 
     if (chargeState === 'overcharge') {
-      engine.spawnShellTo(p.x, Math.max(state.height * 0.1, p.y), 'fizzle', p.palette, p.x + rand(-30, 30), 0, false);
+      engine.registerShot('fizzle');
+      engine.spawnShellTo(p.targetX, p.targetY, 'fizzle', p.palette, p.launchX, 0, false);
     } else if (chargeState === 'perfect') {
-      engine.spawnShellTo(p.x, Math.max(state.height * 0.1, p.y), null, p.palette, p.x + rand(-30, 30), 1.0, true);
+      engine.registerShot('supernova');
+      engine.spawnShellTo(p.targetX, p.targetY, null, p.palette, p.launchX, 1.0, true);
     } else {
-      engine.spawnShellTo(p.x, Math.max(state.height * 0.1, p.y), null, p.palette, p.x + rand(-30, 30), charge, charge >= config.CHARGE.prestigeThreshold);
+      engine.registerShot('normal');
+      engine.spawnShellTo(p.targetX, p.targetY, null, p.palette, p.launchX, charge, charge >= config.CHARGE.prestigeThreshold);
     }
   }
 

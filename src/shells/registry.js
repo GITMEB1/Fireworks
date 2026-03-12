@@ -147,12 +147,85 @@ export function createShellRegistry(engine) {
     }
   }
 
-  const shells = { peony: shellPeony, willow: shellWillow, ring: shellRing, crossette: shellCrossette, crackle: shellCrackle, palm: shellPalm, spiral: shellSpiral, brocade: shellBrocade, ghost: shellGhost, doubleBreak: shellDoubleBreak, fizzle: shellFizzle };
+  function shellHeart({ x, y, palette, countMult, velMult, charge }) {
+    const count = Math.floor(60 * countMult);
+    const color = pick(palette);
+    for (let i = 0; i < count; i++) {
+      const t = (i / count) * Math.PI * 2;
+      const hx = 16 * Math.pow(Math.sin(t), 3);
+      const hy = -(13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t));
+      
+      engine.resetPCfg();
+      engine.pCfg.angle = Math.atan2(hy, hx);
+      engine.pCfg.velocity = Math.sqrt(hx * hx + hy * hy) * 0.35 * velMult;
+      engine.pCfg.drag = 0.95; engine.pCfg.decay = rand(0.015, 0.02);
+      engine.pCfg.trailLength = 4; engine.pCfg.size = 2.0 * (1 + charge * 0.2);
+      engine.spawnParticle(x, y, color, engine.pCfg);
+    }
+  }
+
+  function shellStar({ x, y, palette, countMult, velMult, charge }) {
+    const count = Math.floor(60 * countMult);
+    const color = pick(palette);
+    const points = 5;
+    for (let i = 0; i < count; i++) {
+        const segment = i % points;
+        const t = Math.floor(i / points) / (count / points); 
+        const a1 = segment * 4 * Math.PI / 5 - Math.PI / 2;
+        const a2 = (segment + 1) * 4 * Math.PI / 5 - Math.PI / 2;
+        const px = Math.cos(a1) + (Math.cos(a2) - Math.cos(a1)) * t;
+        const py = Math.sin(a1) + (Math.sin(a2) - Math.sin(a1)) * t;
+        
+        engine.resetPCfg();
+        engine.pCfg.angle = Math.atan2(py, px);
+        engine.pCfg.velocity = Math.sqrt(px * px + py * py) * 6.5 * velMult;
+        engine.pCfg.drag = 0.95; engine.pCfg.decay = rand(0.012, 0.016);
+        engine.pCfg.trailLength = 4; engine.pCfg.size = 2.0 * (1 + charge * 0.2);
+        engine.spawnParticle(x, y, color, engine.pCfg);
+    }
+  }
+
+  function shellSmiley({ x, y, palette, countMult, velMult, charge }) {
+    const count = Math.floor(70 * countMult);
+    const color = pick(palette);
+    for (let i = 0; i < count; i++) {
+        let px, py;
+        if (i < 40) { 
+            const t = (i / 40) * Math.PI * 2;
+            px = Math.cos(t); py = Math.sin(t);
+        } else if (i < 45) { 
+            px = -0.35; py = -0.35;
+        } else if (i < 50) { 
+            px = 0.35; py = -0.35;
+        } else { 
+            const t = ((i - 50) / 19); 
+            const angle = t * 0.6 * Math.PI + 0.2 * Math.PI; 
+            px = Math.cos(angle) * 0.6;
+            py = Math.sin(angle) * 0.6;
+        }
+        
+        engine.resetPCfg();
+        engine.pCfg.angle = Math.atan2(py, px);
+        engine.pCfg.velocity = Math.max(0.1, Math.sqrt(px * px + py * py)) * 6.0 * velMult;
+        engine.pCfg.drag = 0.95; engine.pCfg.decay = rand(0.012, 0.016);
+        engine.pCfg.trailLength = 4; engine.pCfg.size = 2.0 * (1 + charge * 0.2);
+        engine.spawnParticle(x, y, color, engine.pCfg);
+    }
+  }
+
+  const shells = { peony: shellPeony, willow: shellWillow, ring: shellRing, crossette: shellCrossette, crackle: shellCrackle, palm: shellPalm, spiral: shellSpiral, brocade: shellBrocade, ghost: shellGhost, doubleBreak: shellDoubleBreak, fizzle: shellFizzle, heart: shellHeart, star: shellStar, smiley: shellSmiley };
 
   function createExplosion(x, y, type, palette, charge = 0, prestige = false) {
     if (type === 'fizzle') {
         shells.fizzle({ x, y, palette });
         return;
+    }
+
+    let isFever = false;
+    if (engine.isFever && engine.isFever()) {
+        isFever = true;
+        prestige = true;
+        palette = pick(engine.palettes); // Fever palette randomization (or specific high-end palette if desired)
     }
     
     if (charge >= 1.0 && prestige && engine.triggerSupernova) {
@@ -160,8 +233,13 @@ export function createShellRegistry(engine) {
     }
 
     const flashColor = palette[0];
-    const countMult = 1 + charge * (engine.config.CHARGE.maxMultiplier - 1);
-    const velMult = 1 + charge * (engine.config.CHARGE.maxVelMultiplier - 1) + (prestige ? 0.12 : 0);
+    let countMult = 1 + charge * (engine.config.CHARGE.maxMultiplier - 1);
+    let velMult = 1 + charge * (engine.config.CHARGE.maxVelMultiplier - 1) + (prestige ? 0.12 : 0);
+
+    if (isFever) {
+        countMult *= 1.5;
+        velMult *= 1.5;
+    }
 
     engine.spawnFlash(x, y, flashColor, rand(58, 92) * velMult * 1.2, 0.12 + charge * 0.1 + (prestige ? 0.05 : 0));
     engine.spawnGlow(x, y, flashColor, rand(65, 110) * velMult, rand(0.08, 0.18) * (1 + charge + (prestige ? 0.2 : 0)), rand(0.012, 0.02));

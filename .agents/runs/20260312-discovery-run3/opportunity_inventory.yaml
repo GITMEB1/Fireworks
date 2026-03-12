@@ -1,0 +1,104 @@
+opportunities:
+  - opportunity:
+      id: "OPP-001"
+      title: "Procedural Audio Synthesizer Engine"
+      source_stages: ["stage_4_platform_scan", "stage_3_benchmarking"]
+      file_anchor: "src/systems/audioSystem.js (New File) & src/core/engine.js"
+      current_state: "The game operates in complete silence."
+      proposed_state: "Integration of Web Audio API (OscillatorNode) to generate procedural bass drops for Supernovas, white noise for crackles, and upward sweeping tones for charging."
+      impact_hypothesis: "high — Sound is a critical emotional amplifier; procedural audio adds immense juice without asset bloat."
+      effort_estimate: "M — ~150 lines for a new audio system that hooks into existing trigger events."
+      evidence_class: "live_retrieval + practitioner"
+      confidence: "high"
+      risk_flags: ["Autoplay policies require the audio context to be resumed only after the first user click."]
+
+  - opportunity:
+      id: "OPP-002"
+      title: "Supernova Micro-Pause (Game Feel 'Sleep')"
+      source_stages: ["stage_3_benchmarking", "stage_2_playtest"]
+      file_anchor: "src/core/engine.js (triggerSupernova & update loop)"
+      current_state: "Supernova explosions trigger time dilation, but immediately start drawing. The impact feels slightly rushed."
+      proposed_state: "Halt the entire engine update tick for 50-80ms exactly when the Supernova triggers, right before the screen shake, to let the brain anticipate the hit."
+      impact_hypothesis: "high — This 'sleep' pattern is a proven game feel trick that massively exaggerates the perceived weight of an impact."
+      effort_estimate: "S — < 20 lines added to the main loop to skip updates if a sleep timer is active."
+      evidence_class: "practitioner"
+      confidence: "high"
+      risk_flags: []
+
+  - opportunity:
+      id: "OPP-003"
+      title: "Permanent Background 'Soot' Decals"
+      source_stages: ["stage_3_benchmarking", "stage_1_architecture"]
+      file_anchor: "src/render/backgroundRenderer.js"
+      current_state: "The background is completely cleared and re-drawn (or alpha-faded) every frame; the canvas holds no memory of previous explosions."
+      proposed_state: "Draw very faint, randomized 'soot' or 'blast mark' circles onto a permanent offscreen canvas layer whenever a supernova or large shell dies."
+      impact_hypothesis: "medium — Adds a satisfying sense of permanence and history to a long play session, combatting visual reset fatigue."
+      effort_estimate: "M — 50-100 lines to manage a persistent offscreen canvas."
+      evidence_class: "practitioner"
+      confidence: "medium"
+      risk_flags: []
+
+  - opportunity:
+      id: "OPP-004"
+      title: "Trajectory Arc Aiming Mechanic"
+      source_stages: ["stage_3_benchmarking", "stage_2_playtest"]
+      file_anchor: "src/systems/inputSystem.js & src/render/overlayRenderer.js"
+      current_state: "Holding the mouse charges power in place, and rockets launch straight toward the cursor."
+      proposed_state: "Dragging the mouse while holding down draws a dotted parabola showing the launch arc; releasing fires along that physical trajectory."
+      impact_hypothesis: "high — Transforms the interaction from generic clicking to an active 'slingshot' skill game."
+      effort_estimate: "L — ~200 lines to calculate and render the physics arc and modify launch trajectories."
+      evidence_class: "live_retrieval"
+      confidence: "high"
+      risk_flags: ["Significantly changes the core gameplay loop; might interfere with the current rapid-fire aesthetic."]
+
+  - opportunity:
+      id: "OPP-005"
+      title: "Mobile Multi-Touch Simultaneous Firing"
+      source_stages: ["stage_1_architecture", "stage_2_playtest"]
+      file_anchor: "src/systems/inputSystem.js (handlePointerDown)"
+      current_state: "The input system tracks a single pointer; rapid firing requires sequential tapping."
+      proposed_state: "Support an array of active pointers, allowing players to tap with 4 fingers at once for an instant massive barrage."
+      impact_hypothesis: "medium — Highly delightful on mobile/tablets; encourages physical, tactile play."
+      effort_estimate: "S — < 50 lines mapping PointerEvent pointerId to an array of inputs."
+      evidence_class: "model_prior"
+      confidence: "low" # Flagged as low due to model prior only
+      risk_flags: ["Could trigger performance degradation limiters much faster on low-end mobile devices."]
+
+  - opportunity:
+      id: "OPP-006"
+      title: "Global Post-Processing Bloom (Canvas Composite)"
+      source_stages: ["stage_1_architecture", "stage_4_platform_scan"]
+      file_anchor: "src/render/renderer.js"
+      current_state: "Particles draw with standard globalCompositeOperation ('lighter'), but there is no global bleed or bloom that unifies the scene."
+      proposed_state: "Draw the scene to an offscreen canvas, apply a strong blur filter via Canvas context filter property, and composite it back over the main scene at 20% opacity."
+      impact_hypothesis: "high — Radically increases visual polish, making the fireworks look like HDR light sources."
+      effort_estimate: "M — ~80 lines. Relies on relatively fast modern 2D Canvas filter support."
+      evidence_class: "model_prior"
+      confidence: "low"
+      risk_flags: ["Blur filters can be computationally expensive on 4K displays; needs a toggle linked to the Quality System."]
+
+  - opportunity:
+      id: "OPP-007"
+      title: "Stylus Pressure-to-Charge Mapping"
+      source_stages: ["stage_4_platform_scan"]
+      file_anchor: "src/systems/inputSystem.js"
+      current_state: "Charge level is purely a function of time held down."
+      proposed_state: "Intercept PointerEvent 'pressure' on supported devices (Apple Pencil, Surface Pen). Pressing harder fills the charge meter instantly."
+      impact_hypothesis: "low — Very cool for the 1% of users with hardware, invisible to everyone else."
+      effort_estimate: "S — < 30 lines to check e.pressure and apply it to charge multipliers."
+      evidence_class: "live_retrieval"
+      confidence: "medium"
+      risk_flags: []
+
+  - opportunity:
+      id: "OPP-008"
+      title: "Environmental Wind Physics Variation"
+      source_stages: ["stage_1_architecture", "stage_2_playtest"]
+      file_anchor: "src/core/engine.js (simulation loop) & src/core/config.js"
+      current_state: "Particles fall exactly straight down based on gravity and drag."
+      proposed_state: "Introduce a slowly interpolating global 'wind' vector. Particles drift slightly left or right as they fall, and the wind shifts every 10-20 seconds."
+      impact_hypothesis: "medium — Adds organic realism; stops explosions from looking like perfect, sterile math equations."
+      effort_estimate: "S — < 40 lines. Just add a wind.x force to particle velocity updates."
+      evidence_class: "model_prior"
+      confidence: "low"
+      risk_flags: []

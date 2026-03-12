@@ -7,7 +7,7 @@ export function createRenderer({ ctx, backgroundRenderer, activePointers, config
     ctx.globalCompositeOperation = 'lighter';
     for (let i = 0; i < engine.activeCounts.fireworks; i++) engine.pools.fireworks[i].draw(ctx);
     for (let i = 0; i < engine.activeCounts.particles; i++) engine.pools.particles[i].draw(ctx, now);
-    renderChargeVisuals({ ctx, now, activePointers, config });
+    renderChargeVisuals({ ctx, now, activePointers, config, engine });
     for (let i = 0; i < engine.activeCounts.shockwaves; i++) engine.pools.shockwaves[i].draw(ctx);
 
     ctx.globalCompositeOperation = 'source-over';

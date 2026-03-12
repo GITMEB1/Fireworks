@@ -1,0 +1,65 @@
+response_plan:
+  rankings:
+    - id: "OPP-007"
+      title: "New Shell Shapes (Heart / Star)"
+      impact: 3
+      effort: 1
+      leverage: 3.0
+      quadrant: "Quick Win"
+      rationale: "Trivial to add to registry.js; immediately visible to player."
+
+    - id: "OPP-008"
+      title: "Screen / Additive Blending Fixes"
+      impact: 3
+      effort: 1
+      leverage: 3.0
+      quadrant: "Quick Win"
+      rationale: "One-line canvas context change fixes visual washout during rapid fire."
+
+    - id: "OPP-004"
+      title: "Combo / Fever State System"
+      impact: 5
+      effort: 2
+      leverage: 2.5
+      quadrant: "Quick Win"
+      rationale: "Fixes the core retention drop-off using simple state tracking; highest ROI feature."
+
+    - id: "OPP-002"
+      title: "Orchestrated Multi-Launch (Salvos)"
+      impact: 4
+      effort: 2
+      leverage: 2.0
+      quadrant: "Quick Win"
+      rationale: "Alleviates click fatigue and makes automated launches much prettier with low engine risk."
+      
+    - id: "OPP-001"
+      title: "Procedural Audio Synthesizer (Web Audio API)"
+      impact: 5
+      effort: 3
+      leverage: 1.66
+      quadrant: "Big Bet" # Approaching Quick Win
+      rationale: "The most glaring missing feature. Effort is medium due to Web Audio context management, but impact justifies it entirely."
+
+    - id: "OPP-005"
+      title: "Mobile Touch & Tilt Controls"
+      impact: 3
+      effort: 2
+      leverage: 1.5
+      quadrant: "Fill-in"
+      rationale: "Nice to have for mobile context, but doesn't change core desktop loop."
+
+    - id: "OPP-003"
+      title: "Persistent Smoke / Haze Overlay"
+      impact: 3
+      effort: 3
+      leverage: 1.0
+      quadrant: "Fill-in"
+      rationale: "Good for game feel but risks muddying the screen if not rendered perfectly."
+
+    - id: "OPP-006"
+      title: "OffscreenCanvas Render Threading"
+      impact: 4
+      effort: 5
+      leverage: 0.8
+      quadrant: "Big Bet"
+      rationale: "Massive async refactor of rendering pipeline. Only do this if performance drops below acceptable bounds after other features."

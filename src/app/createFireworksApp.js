@@ -59,6 +59,11 @@ export function createFireworksApp({ canvas, hintEl, statusEl, configOverrides =
 
     if (state.hidden) return;
 
+    if (state.sleepTimer && state.sleepTimer > 0) {
+      state.sleepTimer -= dt;
+      return;
+    }
+
     qualitySystem.updateAdaptiveQuality(now, dt);
 
     // Supernova Time Dilation

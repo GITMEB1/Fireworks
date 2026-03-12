@@ -30,9 +30,12 @@ export function createEngine({ config, palettes, state }) {
     spawnShellTo,
     spawnFlash,
     spawnAscentSpark,
+    spawnContinuousSpark,
     queueLaunch,
     flushLaunchQueue,
     triggerSupernova,
+    registerShot,
+    isFever,
     createExplosion: null,
     dispatchDeathBehavior: null,
     launchPattern: null,
@@ -43,6 +46,11 @@ export function createEngine({ config, palettes, state }) {
   engine.createExplosion = shellRegistry.createExplosion;
   engine.dispatchDeathBehavior = createDeathBehaviorDispatcher(engine);
   engine.launchPattern = createLaunchPatternRunner(engine);
+
+  // Initialize new state properties if not present
+  state.combo = state.combo || 0;
+  state.feverTimer = state.feverTimer || 0;
+  state.feverDuration = state.feverDuration || 10000;
 
   function resetPCfg() {
     const pCfg = engine.pCfg;
@@ -121,6 +129,24 @@ export function createEngine({ config, palettes, state }) {
     spawnParticle(x, y, prestige ? '255,255,255' : color, pCfg);
   }
 
+  function spawnContinuousSpark(x, y, color, vx = 0, vy = 0) {
+    const limit = Math.floor(config.LIMITS.maxParticles * 0.6 * state.qualityScale);
+    if (activeCounts.particles >= limit) return;
+    resetPCfg();
+    const pCfg = engine.pCfg;
+    pCfg.velocity = rand(0.5, 3.0);
+    pCfg.angle = rand(0, Math.PI * 2);
+    pCfg.drag = 0.92;
+    pCfg.gravMult = 0.8;
+    pCfg.decay = rand(0.04, 0.08); // dies fast
+    pCfg.size = rand(0.8, 1.8);
+    pCfg.trailLength = 2; // short trail to look like sparks
+    pCfg.alpha = 1;
+    pCfg.inheritVX = vx;
+    pCfg.inheritVY = vy;
+    spawnParticle(x, y, color, pCfg);
+  }
+
   function queueLaunch(delayMs, tx, ty, type = null, palette = null, startX = null, charge = 0, prestige = false) {
     state.scheduledLaunches.push({ at: performance.now() + delayMs, tx, ty, type, palette, startX, charge, prestige });
   }
@@ -131,6 +157,23 @@ export function createEngine({ config, palettes, state }) {
     state.screenShakeTimer = 400;
     state.flashTimer = 100;
     state.flashColor = color || '255,255,255';
+    state.sleepTimer = 60;
+  }
+
+  function registerShot(type) {
+    if (type === 'supernova') {
+      state.combo++;
+      if (state.combo >= 3) {
+        state.feverTimer = state.feverDuration;
+        state.combo = 0; // Reset combo when entering Fever
+      }
+    } else {
+      state.combo = 0; // Reset combo on normal shots or fizzles
+    }
+  }
+
+  function isFever() {
+    return state.feverTimer > 0;
   }
 
   function flushLaunchQueue(now) {
@@ -156,6 +199,22 @@ export function createEngine({ config, palettes, state }) {
 
   function update(timeScale, now) {
     flushLaunchQueue(now);
+    
+    // Update Fever timer (dt is roughly equivalent to timeScale in ms contexts, though Fireworks engine handles dt in main loop, we decrement based on timeScale * 16.66)
+    if (state.feverTimer > 0) {
+      state.feverTimer -= timeScale * 16.66;
+    }
+
+    // Sputter sparks for active pointers
+    if (state.activePointers) {
+      for (const p of state.activePointers.values()) {
+        if (Math.random() < Math.max(0.1, timeScale * 0.4)) {
+          const color = p.palette ? pick(p.palette) : '255,255,255';
+          engine.spawnContinuousSpark(p.x, p.y, color, rand(-1, 1), rand(-1, 1));
+        }
+      }
+    }
+
     compactAndUpdate('fireworks', timeScale);
     compactAndUpdate('particles', timeScale);
     compactAndUpdate('smokes', timeScale);
