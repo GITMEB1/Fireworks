@@ -1,0 +1,1316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Premium Fireworks - True Delta Edition</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #020206;
+      touch-action: none;
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-touch-callout: none;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      touch-action: none;
+    }
+
+    #hint, #status {
+      position: absolute;
+      left: 0;
+      width: 100%;
+      text-align: center;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      pointer-events: none;
+      z-index: 10;
+      transition: opacity 1.6s ease;
+    }
+
+    #hint {
+      top: 50%;
+      transform: translateY(-50%);
+      color: rgba(255,255,255,0.42);
+      font-size: 1.05rem;
+      font-weight: 300;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+    }
+
+    #status {
+      top: 18px;
+      color: rgba(255,255,255,0.22);
+      font-size: 0.72rem;
+      letter-spacing: 1.6px;
+      text-transform: uppercase;
+      opacity: 0;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      #hint { transition: opacity 0.6s ease; }
+    }
+  </style>
+</head>
+<body>
+  <div id="hint">Hold to Charge</div>
+  <div id="status"></div>
+  <canvas id="fwCanvas" role="img" aria-label="Fireworks display"></canvas>
+
+  <script>
+    function create2DContext(el) {
+      const attempts = [
+        { alpha: false, desynchronized: true, colorSpace: 'display-p3' },
+        { alpha: false, desynchronized: true },
+        { alpha: false }
+      ];
+      for (const opts of attempts) {
+        try {
+          const c = el.getContext('2d', opts);
+          if (c) return c;
+        } catch (_) {}
+      }
+      return el.getContext('2d');
+    }
+
+    const canvas = document.getElementById('fwCanvas');
+    const ctx = create2DContext(canvas);
+    const hint = document.getElementById('hint');
+    const statusEl = document.getElementById('status');
+
+    const CONFIG = {
+      gravity: 0.065,
+      baseFriction: 0.952,
+
+      LIMITS: {
+        maxParticles: 2000,
+        maxSmoke: 80,
+        maxGlows: 30,
+        maxEmbers: 200,
+        maxShockwaves: 15,
+        maxFireworks: 25
+      },
+
+      autoLaunchMin: 60,
+      autoLaunchMax: 160,
+      glowIntensity: 1,
+      smokeEnabled: true,
+      hazeEnabled: true,
+      backgroundPulse: true,
+      finaleChance: 0.14,
+
+      CHARGE: {
+        minDuration: 180,
+        maxDuration: 1450,
+        maxMultiplier: 2.25,
+        maxVelMultiplier: 1.45,
+        prestigeThreshold: 0.9
+      },
+
+      QUALITY: {
+        enabled: true,
+        sampleSize: 30,
+        degradeAvgMs: 22.5,
+        recoverAvgMs: 16.0,
+        minScale: 0.62,
+        maxScale: 1.0,
+        stepDown: 0.12,
+        stepUp: 0.06,
+        cooldownMs: 1800,
+        reduceMotionScale: 0.72
+      },
+
+      shellWeights: {
+        peony: 1.2, willow: 1.0, ring: 0.9, crossette: 0.8,
+        crackle: 0.9, palm: 0.8, spiral: 0.7, brocade: 0.78,
+        ghost: 0.62, doubleBreak: 0.68
+      }
+    };
+
+    const PALETTES = [
+      ['255, 215, 0', '255, 240, 170', '255, 180, 90'],
+      ['255, 120, 80', '255, 70, 120', '255, 180, 70'],
+      ['120, 255, 255', '120, 180, 255', '200, 120, 255'],
+      ['100, 255, 130', '70, 210, 255', '30, 120, 255'],
+      ['255, 255, 255', '210, 225, 255', '180, 200, 255'],
+      ['255, 80, 140', '255, 180, 80', '255, 225, 80'],
+      ['180, 255, 110', '255, 110, 240', '110, 255, 255']
+    ];
+
+    const DEATH_NONE = 0;
+    const DEATH_CROSSETTE = 1;
+    const DEATH_CRACKLE = 2;
+    const DEATH_GHOST = 3;
+    const DEATH_DOUBLE_BREAK = 4;
+
+    let width = 0, height = 0, dpr = 1;
+    let hidden = false, userInteracted = false;
+    let autoLaunchTimer = 45;
+    let lastNow = 0, lastQualityAdjust = 0;
+    let qualityScale = 1;
+    let fpsSamples = [];
+    let reducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    let suppressMouseUntil = 0;
+
+    const activePointers = new Map();
+    let scheduledLaunches = [];
+
+    const pools = {
+      fireworks: [], particles: [], smokes: [], glows: [], embers: [], shockwaves: []
+    };
+
+    const activeCounts = {
+      fireworks: 0, particles: 0, smokes: 0, glows: 0, embers: 0, shockwaves: 0
+    };
+
+    let stars = [], twinkleStars = [];
+    const bgCanvas = document.createElement('canvas');
+    const bgCtx = create2DContext(bgCanvas);
+
+    function rand(min, max) { return Math.random() * (max - min) + min; }
+    function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+    function pick(arr) { return arr[(Math.random() * arr.length) | 0]; }
+    function rgba(rgb, a) { return `rgba(${rgb}, ${a})`; }
+    function smoothstep01(t) { return t * t * (3 - 2 * t); }
+
+    function weightedShellType(charge = 0) {
+      const weights = { ...CONFIG.shellWeights };
+      if (charge > 0.2) { weights.willow += charge * 1.5; weights.palm += charge; }
+      if (charge > 0.5) { weights.brocade += charge * 2.5; weights.spiral += charge * 1.5; }
+      if (charge > 0.8) { weights.doubleBreak += charge * 4; weights.ghost += charge * 3; }
+
+      const entries = Object.entries(weights);
+      let total = 0;
+      for (const [, w] of entries) total += w;
+      let roll = Math.random() * total;
+      for (const [type, w] of entries) {
+        roll -= w;
+        if (roll <= 0) return type;
+      }
+      return 'peony';
+    }
+
+    const pCfg = {
+      alpha: 1, decay: 0.015, size: 1.7, drag: 0.95, gravMult: 1,
+      trailLength: 4, isFlash: false, isStrobe: false, sparkleChance: 0,
+      deathBehavior: DEATH_NONE, angle: 0, velocity: 0, inheritVX: 0, inheritVY: 0,
+      velMult: 1, charge: 0, secondaryColor: null
+    };
+
+    function resetPCfg() {
+      pCfg.alpha = 1; pCfg.decay = 0.015; pCfg.size = 1.7;
+      pCfg.drag = CONFIG.baseFriction; pCfg.gravMult = 1; pCfg.trailLength = 4;
+      pCfg.isFlash = false; pCfg.isStrobe = false; pCfg.sparkleChance = 0;
+      pCfg.deathBehavior = DEATH_NONE; pCfg.angle = 0; pCfg.velocity = 0;
+      pCfg.inheritVX = 0; pCfg.inheritVY = 0;
+      pCfg.velMult = 1; pCfg.charge = 0; pCfg.secondaryColor = null;
+    }
+
+    class PooledGlow {
+      init(x, y, color, radius, alpha, decay, rise = -0.02) {
+        this.x = x; this.y = y; this.color = color;
+        this.radius = radius; this.alpha = alpha;
+        this.decay = decay; this.rise = rise;
+      }
+      update(timeScale) {
+        this.y += this.rise * timeScale;
+        this.radius += 0.7 * timeScale;
+        this.alpha -= this.decay * timeScale;
+        return this.alpha <= 0;
+      }
+      draw() {
+        const g = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.radius);
+        g.addColorStop(0, rgba(this.color, this.alpha));
+        g.addColorStop(0.35, rgba(this.color, this.alpha * 0.35));
+        g.addColorStop(1, rgba(this.color, 0));
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+
+    class PooledSmoke {
+      init(x, y, color) {
+        this.x = x + rand(-16, 16); this.y = y + rand(-16, 16);
+        this.vx = rand(-0.28, 0.28); this.vy = rand(-0.38, -0.05);
+        this.size = rand(18, 42); this.alpha = rand(0.04, 0.085);
+        this.decay = rand(0.0005, 0.0011); this.color = color || '110,110,120';
+      }
+      update(timeScale) {
+        this.x += this.vx * timeScale; this.y += this.vy * timeScale;
+        this.size += 0.22 * timeScale; this.alpha -= this.decay * timeScale;
+        return this.alpha <= 0;
+      }
+      draw() {
+        ctx.fillStyle = rgba(this.color, this.alpha);
+        ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+
+    class PooledEmber {
+      init(x, y, color) {
+        this.x = x + rand(-10, 10); this.y = y + rand(-4, 4);
+        this.vx = rand(-0.45, 0.45); this.vy = rand(-0.25, 0.2);
+        this.color = color; this.alpha = rand(0.18, 0.38);
+        this.size = rand(0.9, 1.8); this.decay = rand(0.0035, 0.008);
+      }
+      update(timeScale) {
+        this.x += this.vx * timeScale; this.y += this.vy * timeScale;
+        this.vy += 0.008 * timeScale;
+        this.vx *= Math.pow(0.992, timeScale);
+        this.alpha -= this.decay * timeScale;
+        return this.alpha <= 0;
+      }
+      draw() {
+        ctx.fillStyle = rgba(this.color, this.alpha);
+        ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+
+    class PooledShockwave {
+      init(x, y, color, charge = 0) {
+        this.x = x; this.y = y; this.color = color;
+        this.radius = 10 + charge * 18;
+        this.alpha = 0.22 + charge * 0.12;
+        this.lineWidth = 1.2 + charge * 2.2;
+        this.growth = 3.2 + charge * 3.6;
+        this.decay = 0.012 + (1 - charge) * 0.004;
+      }
+      update(timeScale) {
+        this.radius += this.growth * timeScale;
+        this.alpha -= this.decay * timeScale;
+        return this.alpha <= 0;
+      }
+      draw() {
+        ctx.strokeStyle = rgba(this.color, this.alpha);
+        ctx.lineWidth = this.lineWidth;
+        ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2); ctx.stroke();
+      }
+    }
+
+    class PooledParticle {
+      constructor() {
+        this.trail = new Float32Array(64);
+      }
+      init(x, y, color, cfg) {
+        this.x = x; this.y = y; this.color = color;
+        this.alpha = cfg.alpha; this.decay = cfg.decay;
+        this.size = cfg.size; this.drag = cfg.drag;
+        this.gravMult = cfg.gravMult; this.trailLength = cfg.trailLength;
+        this.isFlash = cfg.isFlash; this.isStrobe = cfg.isStrobe;
+        this.strobeSpeed = rand(0.07, 0.14); this.sparkleChance = cfg.sparkleChance;
+        this.deathBehavior = cfg.deathBehavior; this.velMult = cfg.velMult;
+        this.charge = cfg.charge; this.secondaryColor = cfg.secondaryColor;
+        const a = cfg.angle;
+        this.vx = Math.cos(a) * cfg.velocity + cfg.inheritVX;
+        this.vy = Math.sin(a) * cfg.velocity + cfg.inheritVY;
+        this.trailIndex = 0; this.trailCount = 0;
+      }
+      update(timeScale) {
+        if (!this.isFlash) {
+          this.trailIndex = (this.trailIndex - 2) & 62;
+          this.trail[this.trailIndex] = this.x;
+          this.trail[this.trailIndex + 1] = this.y;
+          if (this.trailCount < this.trailLength) this.trailCount++;
+          this.vx *= Math.pow(this.drag, timeScale);
+          this.vy *= Math.pow(this.drag, timeScale);
+          this.vy += CONFIG.gravity * this.gravMult * timeScale;
+          this.x += this.vx * timeScale;
+          this.y += this.vy * timeScale;
+        }
+        this.alpha -= this.decay * timeScale;
+        if (this.alpha <= 0) {
+          if (this.deathBehavior !== DEATH_NONE) dispatchDeathBehavior(this);
+          return true;
+        }
+        return false;
+      }
+      draw(now) {
+        if (this.isFlash) {
+          ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+          ctx.fillStyle = rgba(this.color, Math.max(0, this.alpha)); ctx.fill();
+          return;
+        }
+        if (this.trailCount < 2) return;
+
+        let currentAlpha = this.alpha;
+        if (this.isStrobe) currentAlpha = Math.sin(now * this.strobeSpeed) > 0 ? this.alpha : 0.03;
+
+        if (this.sparkleChance > 0 && Math.random() < this.sparkleChance) {
+          ctx.strokeStyle = `rgba(255,255,255,${currentAlpha})`;
+          ctx.lineWidth = this.size * 1.4;
+        } else {
+          ctx.strokeStyle = rgba(this.color, currentAlpha);
+          ctx.lineWidth = this.size;
+        }
+
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        let idx = this.trailIndex;
+        ctx.moveTo(this.trail[idx], this.trail[idx + 1]);
+        for (let i = 1; i < this.trailCount; i++) {
+          idx = (idx + 2) & 62;
+          ctx.lineTo(this.trail[idx], this.trail[idx + 1]);
+        }
+        ctx.stroke();
+      }
+    }
+
+    class PooledFirework {
+      constructor() {
+        this.history = new Float32Array(64);
+      }
+      init(startX, startY, targetX, targetY, type, palette, charge = 0, prestige = false) {
+        this.x = startX; this.y = startY;
+        this.targetX = targetX; this.targetY = targetY;
+        this.charge = charge; this.prestige = prestige;
+        this.type = type || weightedShellType(charge);
+        this.palette = palette || pick(PALETTES);
+
+        this.timeToTarget = rand(38, 58) * (prestige ? 1.05 : 1);
+        this.vx = (targetX - startX) / this.timeToTarget;
+        this.vy = (targetY - startY) / this.timeToTarget - 0.5 * CONFIG.gravity * this.timeToTarget;
+
+        this.isHeavy = ['palm', 'willow', 'brocade', 'doubleBreak'].includes(this.type) || charge > 0.5 || prestige;
+        this.historyLength = Math.floor((this.isHeavy ? 7 : 4) + charge * 5 + (prestige ? 2 : 0));
+        this.color = prestige ? '255,245,220' : (this.isHeavy ? '255,220,150' : '255,180,110');
+        this.lineWidth = (this.isHeavy ? 2.8 : 1.6) + charge * 1.5 + (prestige ? 0.7 : 0);
+        this.sparkRate = (this.isHeavy ? 0.25 : 0.12) + charge * 0.2 + (prestige ? 0.1 : 0);
+        this.launchGlowColor = this.palette[0];
+        this.histIndex = 0; this.histCount = 0;
+      }
+      update(timeScale) {
+        this.histIndex = (this.histIndex - 2) & 62;
+        this.history[this.histIndex] = this.x;
+        this.history[this.histIndex + 1] = this.y;
+        if (this.histCount < this.historyLength) this.histCount++;
+
+        this.vy += CONFIG.gravity * timeScale;
+        this.x += this.vx * timeScale;
+        this.y += this.vy * timeScale;
+        this.timeToTarget -= 1 * timeScale;
+
+        const maxParticles = Math.floor(CONFIG.LIMITS.maxParticles * qualityScale);
+        if (activeCounts.particles < maxParticles && Math.random() < this.sparkRate * timeScale) {
+          spawnAscentSpark(this.x, this.y, this.launchGlowColor, this.vx, this.vy, this.type, this.charge, this.prestige);
+        }
+
+        const maxGlows = Math.floor(CONFIG.LIMITS.maxGlows * qualityScale);
+        if (activeCounts.glows < maxGlows && Math.random() < (0.06 + this.charge * 0.1 + (this.prestige ? 0.05 : 0)) * timeScale) {
+          spawnGlow(
+            this.x, this.y, this.launchGlowColor,
+            rand(16, 26) * (1 + this.charge * 0.5 + (this.prestige ? 0.25 : 0)),
+            0.06 * CONFIG.glowIntensity * (1 + this.charge + (this.prestige ? 0.35 : 0)),
+            0.01
+          );
+        }
+
+        if (this.timeToTarget <= 0 || this.vy >= 0) {
+          createExplosion(this.x, this.y, this.type, this.palette, this.charge, this.prestige);
+          return true;
+        }
+        return false;
+      }
+      draw() {
+        if (this.histCount < 2) return;
+        ctx.lineCap = 'round';
+        ctx.lineWidth = this.lineWidth;
+        ctx.strokeStyle = rgba(this.color, 0.88);
+        ctx.beginPath();
+        let idx = this.histIndex;
+        ctx.moveTo(this.history[idx], this.history[idx + 1]);
+        for (let i = 1; i < this.histCount; i++) {
+          idx = (idx + 2) & 62;
+          ctx.lineTo(this.history[idx], this.history[idx + 1]);
+        }
+        ctx.stroke();
+      }
+    }
+
+    function preAllocatePools() {
+      for (let i = 0; i < CONFIG.LIMITS.maxParticles; i++) pools.particles.push(new PooledParticle());
+      for (let i = 0; i < CONFIG.LIMITS.maxSmoke; i++) pools.smokes.push(new PooledSmoke());
+      for (let i = 0; i < CONFIG.LIMITS.maxGlows; i++) pools.glows.push(new PooledGlow());
+      for (let i = 0; i < CONFIG.LIMITS.maxEmbers; i++) pools.embers.push(new PooledEmber());
+      for (let i = 0; i < CONFIG.LIMITS.maxShockwaves; i++) pools.shockwaves.push(new PooledShockwave());
+      for (let i = 0; i < CONFIG.LIMITS.maxFireworks; i++) pools.fireworks.push(new PooledFirework());
+    }
+
+    function spawnParticle(x, y, color, cfg) {
+      const limit = Math.floor(CONFIG.LIMITS.maxParticles * qualityScale);
+      if (activeCounts.particles >= limit) return;
+      pools.particles[activeCounts.particles++].init(x, y, color, cfg);
+    }
+
+    function spawnGlow(x, y, color, radius = 80, alpha = 0.16, decay = 0.018, rise = -0.02) {
+      const limit = Math.floor(CONFIG.LIMITS.maxGlows * qualityScale);
+      if (activeCounts.glows >= limit) return;
+      pools.glows[activeCounts.glows++].init(x, y, color, radius, alpha * CONFIG.glowIntensity, decay, rise);
+    }
+
+    function spawnSmokeBurst(x, y, color, amount = 3) {
+      if (!CONFIG.smokeEnabled) return;
+      const limit = Math.floor(CONFIG.LIMITS.maxSmoke * qualityScale);
+      for (let i = 0; i < amount; i++) {
+        if (activeCounts.smokes >= limit) break;
+        pools.smokes[activeCounts.smokes++].init(x, y, color);
+      }
+    }
+
+    function spawnEmbers(x, y, color, amount = 8) {
+      const limit = Math.floor(CONFIG.LIMITS.maxEmbers * qualityScale);
+      for (let i = 0; i < amount; i++) {
+        if (activeCounts.embers >= limit) break;
+        pools.embers[activeCounts.embers++].init(x, y, color);
+      }
+    }
+
+    function spawnShockwave(x, y, color, charge = 0) {
+      const limit = Math.floor(CONFIG.LIMITS.maxShockwaves * qualityScale);
+      if (activeCounts.shockwaves >= limit) return;
+      pools.shockwaves[activeCounts.shockwaves++].init(x, y, color, charge);
+    }
+
+    function spawnShellTo(tx, ty, type, palette, startX = null, charge = 0, prestige = false) {
+      const limit = Math.floor(CONFIG.LIMITS.maxFireworks * (0.8 + qualityScale * 0.2));
+      if (activeCounts.fireworks >= limit) return;
+      const sx = startX == null ? tx + rand(-50, 50) : startX;
+      pools.fireworks[activeCounts.fireworks++].init(
+        sx, height + 12, tx, clamp(ty, height * 0.12, height * 0.82),
+        type, palette, charge, prestige
+      );
+    }
+
+    function spawnFlash(x, y, color, size = 76, alpha = 0.14) {
+      resetPCfg();
+      pCfg.isFlash = true; pCfg.size = size; pCfg.alpha = alpha; pCfg.decay = 0.022; pCfg.velocity = 0;
+      spawnParticle(x, y, color, pCfg);
+    }
+
+    function spawnAscentSpark(x, y, color, vx, vy, type, charge = 0, prestige = false) {
+      const heavy = ['willow', 'brocade', 'palm'].includes(type) || charge > 0.5 || prestige;
+      resetPCfg();
+      pCfg.velocity = (heavy ? rand(0.4, 1.4) : rand(0.3, 1)) * (1 + charge * 0.5 + (prestige ? 0.25 : 0));
+      pCfg.angle = rand(Math.PI * 0.7, Math.PI * 1.3);
+      pCfg.drag = 0.9; pCfg.gravMult = 0.45;
+      pCfg.decay = heavy ? 0.045 : 0.055;
+      pCfg.size = (heavy ? 1.2 : 0.9) * (1 + charge);
+      pCfg.trailLength = heavy ? 3 : 2;
+      pCfg.alpha = 0.9;
+      pCfg.inheritVX = vx * 0.12; pCfg.inheritVY = vy * 0.12;
+      pCfg.sparkleChance = prestige ? 0.16 : 0;
+      spawnParticle(x, y, prestige ? '255,255,255' : color, pCfg);
+    }
+
+    function dispatchDeathBehavior(p) {
+      const limit = Math.floor(CONFIG.LIMITS.maxParticles * qualityScale);
+      const base = Math.atan2(p.vy, p.vx);
+
+      switch (p.deathBehavior) {
+        case DEATH_CROSSETTE:
+          if (activeCounts.particles + 4 > limit) return;
+          for (let j = 0; j < 4; j++) {
+            resetPCfg();
+            pCfg.angle = base + j * (Math.PI / 2);
+            pCfg.velocity = rand(2.2, 3.4) * p.velMult;
+            pCfg.drag = 0.925; pCfg.decay = rand(0.02, 0.03);
+            pCfg.trailLength = 3; pCfg.size = 1.5 * (1 + p.charge * 0.2);
+            spawnParticle(p.x, p.y, p.color, pCfg);
+          }
+          spawnGlow(p.x, p.y, p.color, 28 * p.velMult, 0.06, 0.03);
+          break;
+
+        case DEATH_CRACKLE: {
+          const splits = Math.random() < 0.85 ? 2 : 3;
+          if (activeCounts.particles + splits > limit) return;
+          for (let k = 0; k < splits; k++) {
+            resetPCfg();
+            pCfg.angle = rand(0, Math.PI * 2); pCfg.velocity = rand(0.8, 2.4) * p.velMult;
+            pCfg.drag = 0.9; pCfg.gravMult = 0.8; pCfg.decay = rand(0.03, 0.05);
+            pCfg.trailLength = 1; pCfg.size = 1.2; pCfg.isStrobe = Math.random() < 0.35;
+            spawnParticle(p.x, p.y, '255,235,180', pCfg);
+          }
+          break;
+        }
+
+        case DEATH_GHOST:
+          if (activeCounts.particles + 1 > limit) return;
+          resetPCfg();
+          pCfg.velocity = rand(1.8, 4.2) * p.velMult; pCfg.drag = 0.936;
+          pCfg.decay = rand(0.014, 0.02); pCfg.trailLength = 5;
+          pCfg.size = 1.7 * (1 + p.charge * 0.3); pCfg.alpha = 0.95; pCfg.sparkleChance = 0.08;
+          spawnParticle(p.x, p.y, '255,255,255', pCfg);
+          break;
+
+        case DEATH_DOUBLE_BREAK: {
+          if (activeCounts.particles + 5 > limit) return;
+          const sColor = Math.random() < 0.28 ? '255,255,255' : (p.secondaryColor || p.color);
+          for (let k = 0; k < 5; k++) {
+            resetPCfg();
+            pCfg.angle = rand(0, Math.PI * 2); pCfg.velocity = rand(1.8, 4.1) * p.velMult;
+            pCfg.drag = 0.932; pCfg.gravMult = 0.95; pCfg.decay = rand(0.016, 0.024);
+            pCfg.trailLength = 4; pCfg.size = 1.4 * (1 + p.charge * 0.2); pCfg.sparkleChance = 0.06;
+            spawnParticle(p.x, p.y, sColor, pCfg);
+          }
+          spawnGlow(p.x, p.y, sColor, 34 * p.velMult, 0.07, 0.028);
+          break;
+        }
+      }
+    }
+
+    function createExplosion(x, y, type, palette, charge = 0, prestige = false) {
+      const flashColor = palette[0];
+      const countMult = 1 + charge * (CONFIG.CHARGE.maxMultiplier - 1);
+      const velMult = 1 + charge * (CONFIG.CHARGE.maxVelMultiplier - 1) + (prestige ? 0.12 : 0);
+
+      spawnFlash(x, y, flashColor, rand(58, 92) * velMult * 1.2, 0.12 + charge * 0.1 + (prestige ? 0.05 : 0));
+      spawnGlow(x, y, flashColor, rand(65, 110) * velMult, rand(0.08, 0.18) * (1 + charge + (prestige ? 0.2 : 0)), rand(0.012, 0.02));
+      spawnSmokeBurst(x, y, flashColor, Math.floor((['brocade', 'willow', 'doubleBreak'].includes(type) ? 4 : 3) * countMult));
+      spawnEmbers(x, y, flashColor, Math.floor((type === 'crackle' ? 14 : 8) * countMult));
+      if (charge > 0.4 || prestige) spawnShockwave(x, y, flashColor, prestige ? Math.max(charge, 0.82) : charge);
+
+      const params = { x, y, palette, countMult, velMult, charge, prestige };
+
+      switch (type) {
+        case 'willow': shellWillow(params); break;
+        case 'ring': shellRing(params); break;
+        case 'crossette': shellCrossette(params); break;
+        case 'crackle': shellCrackle(params); break;
+        case 'palm': shellPalm(params); break;
+        case 'spiral': shellSpiral(params); break;
+        case 'brocade': shellBrocade(params); break;
+        case 'ghost': shellGhost(params); break;
+        case 'doubleBreak': shellDoubleBreak(params); break;
+        case 'peony':
+        default: shellPeony(params); break;
+      }
+
+      if (prestige && Math.random() < 0.9) {
+        const haloColor = Math.random() < 0.5 ? '255,255,255' : pick(palette);
+        const crownCount = Math.floor(12 + charge * 10);
+        for (let i = 0; i < crownCount; i++) {
+          resetPCfg();
+          pCfg.angle = (i / crownCount) * Math.PI * 2;
+          pCfg.velocity = rand(4.4, 6.2); pCfg.drag = 0.94; pCfg.gravMult = 0.92;
+          pCfg.decay = rand(0.012, 0.018); pCfg.trailLength = 5; pCfg.size = 1.6; pCfg.sparkleChance = 0.1;
+          spawnParticle(x, y, haloColor, pCfg);
+        }
+      }
+    }
+
+    function shellPeony({ x, y, palette, countMult, velMult, charge, prestige }) {
+      const count = Math.floor(78 * countMult);
+      for (let i = 0; i < count; i++) {
+        resetPCfg();
+        pCfg.angle = rand(0, Math.PI * 2);
+        pCfg.velocity = rand(2.5, 8.2) * velMult; pCfg.drag = 0.935; pCfg.decay = rand(0.012, 0.018);
+        pCfg.trailLength = 4 + Math.floor(charge * 2) + (prestige ? 1 : 0);
+        pCfg.size = (Math.random() < 0.2 ? 2.2 : 1.7) * (1 + charge * 0.3);
+        pCfg.sparkleChance = prestige ? 0.14 : 0.08;
+        spawnParticle(x, y, Math.random() < 0.24 ? '255,255,255' : pick(palette), pCfg);
+      }
+    }
+
+    function shellWillow({ x, y, countMult, velMult, charge, prestige }) {
+      const goldA = PALETTES[0][0], goldB = PALETTES[0][1];
+      const count = Math.floor(80 * countMult);
+      for (let i = 0; i < count; i++) {
+        resetPCfg();
+        pCfg.angle = rand(0, Math.PI * 2);
+        pCfg.velocity = rand(1.5, 6.5) * velMult; pCfg.drag = 0.968; pCfg.gravMult = 0.82; pCfg.decay = rand(0.0042, 0.0065);
+        pCfg.trailLength = 12 + Math.floor(charge * 6) + (prestige ? 2 : 0);
+        pCfg.size = rand(1.4, 2.1) * (1 + charge * 0.3); pCfg.sparkleChance = prestige ? 0.09 : 0.05;
+        spawnParticle(x, y, Math.random() < 0.5 ? goldA : goldB, pCfg);
+      }
+      spawnGlow(x, y, goldA, 120 * velMult, 0.12 * (1 + charge), 0.01);
+    }
+
+    function shellRing({ x, y, palette, countMult, velMult, charge }) {
+      const count = Math.floor(44 * countMult);
+      const angleOffset = rand(0, Math.PI * 2);
+      const ringColor = pick(palette);
+      for (let i = 0; i < count; i++) {
+        resetPCfg();
+        pCfg.angle = (i / count) * Math.PI * 2 + angleOffset;
+        pCfg.velocity = rand(5.8, 6.5) * velMult; pCfg.drag = 0.942; pCfg.decay = rand(0.010, 0.013);
+        pCfg.trailLength = 4; pCfg.size = 1.8 * (1 + charge * 0.3);
+        spawnParticle(x, y, ringColor, pCfg);
+      }
+      for (let i = 0; i < Math.floor(8 * countMult); i++) {
+        resetPCfg();
+        pCfg.angle = rand(0, Math.PI * 2);
+        pCfg.velocity = rand(0.8, 2) * velMult; pCfg.decay = 0.028; pCfg.size = 2.3; pCfg.trailLength = 2;
+        spawnParticle(x, y, '255,255,255', pCfg);
+      }
+    }
+
+    function shellCrossette({ x, y, palette, countMult, velMult, charge }) {
+      const count = Math.floor(24 * countMult);
+      for (let i = 0; i < count; i++) {
+        resetPCfg();
+        pCfg.angle = rand(0, Math.PI * 2);
+        pCfg.velocity = rand(4.2, 7.2) * velMult; pCfg.drag = 0.958; pCfg.decay = rand(0.017, 0.022);
+        pCfg.trailLength = 5; pCfg.size = 2.4 * (1 + charge * 0.2);
+        pCfg.deathBehavior = DEATH_CROSSETTE; pCfg.velMult = velMult; pCfg.charge = charge;
+        spawnParticle(x, y, pick(palette), pCfg);
+      }
+    }
+
+    function shellCrackle({ x, y, palette, countMult, velMult, charge }) {
+      const color = pick(palette);
+      const count = Math.floor(72 * countMult);
+      for (let i = 0; i < count; i++) {
+        resetPCfg();
+        pCfg.angle = rand(0, Math.PI * 2);
+        pCfg.velocity = rand(1.4, 8.4) * velMult; pCfg.drag = 0.93; pCfg.decay = rand(0.013, 0.018);
+        pCfg.trailLength = 2; pCfg.size = rand(1.6, 2.2) * (1 + charge * 0.2); pCfg.isStrobe = true;
+        pCfg.deathBehavior = DEATH_CRACKLE; pCfg.velMult = velMult;
+        spawnParticle(x, y, color, pCfg);
+      }
+      spawnGlow(x, y, '255,220,170', 92 * velMult, 0.14 * (1 + charge), 0.018);
+    }
+
+    function shellPalm({ x, y, palette, countMult, velMult, charge }) {
+      const arms = Math.floor(12 * countMult);
+      const color = pick(palette);
+      for (let i = 0; i < arms; i++) {
+        resetPCfg();
+        pCfg.angle = (i / arms) * Math.PI * 2 + rand(-0.06, 0.06);
+        pCfg.velocity = rand(6.4, 9.2) * velMult; pCfg.drag = 0.955; pCfg.gravMult = 0.58;
+        pCfg.decay = rand(0.0085, 0.0115); pCfg.trailLength = 15 + Math.floor(charge * 6);
+        pCfg.size = rand(2.3, 3.2) * (1 + charge * 0.3); pCfg.sparkleChance = 0.05;
+        spawnParticle(x, y, color, pCfg);
+      }
+      for (let i = 0; i < Math.floor(10 * countMult); i++) {
+        resetPCfg();
+        pCfg.angle = rand(0, Math.PI * 2);
+        pCfg.velocity = rand(1.2, 2.4) * velMult; pCfg.decay = 0.028; pCfg.size = 2.1; pCfg.trailLength = 2;
+        spawnParticle(x, y, '255,255,255', pCfg);
+      }
+    }
+
+    function shellSpiral({ x, y, palette, countMult, velMult, charge }) {
+      const turns = Math.floor(42 * countMult);
+      const start = rand(0, Math.PI * 2);
+      const colorA = pick(palette);
+      const colorB = Math.random() < 0.5 ? '255,255,255' : pick(palette);
+      for (let i = 0; i < turns; i++) {
+        const t = i / turns;
+        const velocity = (2 + t * 5.2) * velMult;
+        resetPCfg();
+        pCfg.angle = start + t * Math.PI * 5.4; pCfg.velocity = velocity; pCfg.drag = 0.946;
+        pCfg.decay = rand(0.010, 0.014); pCfg.trailLength = 5; pCfg.size = 1.7 * (1 + charge * 0.2);
+        spawnParticle(x, y, colorA, pCfg);
+
+        pCfg.angle = start + t * Math.PI * 5.4 + Math.PI;
+        spawnParticle(x, y, colorB, pCfg);
+      }
+      spawnGlow(x, y, colorA, 96 * velMult, 0.12 * (1 + charge), 0.018);
+    }
+
+    function shellBrocade({ x, y, palette, countMult, velMult, charge }) {
+      const gold = Math.random() < 0.5 ? '255,215,120' : '255,235,170';
+      const count = Math.floor(66 * countMult);
+      for (let i = 0; i < count; i++) {
+        resetPCfg();
+        pCfg.angle = rand(0, Math.PI * 2);
+        pCfg.velocity = rand(2.2, 7.1) * velMult; pCfg.drag = 0.965; pCfg.gravMult = 0.88;
+        pCfg.decay = rand(0.0052, 0.0074); pCfg.trailLength = 11 + Math.floor(charge * 5);
+        pCfg.size = rand(1.8, 2.4) * (1 + charge * 0.3); pCfg.sparkleChance = 0.12;
+        spawnParticle(x, y, gold, pCfg);
+      }
+      for (let i = 0; i < Math.floor(14 * countMult); i++) {
+        resetPCfg();
+        pCfg.angle = rand(0, Math.PI * 2);
+        pCfg.velocity = rand(1.4, 3.2) * velMult; pCfg.drag = 0.95; pCfg.gravMult = 0.92;
+        pCfg.decay = rand(0.012, 0.018); pCfg.trailLength = 5; pCfg.size = 1.2;
+        spawnParticle(x, y, pick(palette), pCfg);
+      }
+      spawnGlow(x, y, gold, 132 * velMult, 0.15 * (1 + charge), 0.01);
+    }
+
+    function shellGhost({ x, y, palette, countMult, velMult, charge }) {
+      const outer = Math.floor(46 * countMult);
+      const dimColor = pick(palette);
+      for (let i = 0; i < outer; i++) {
+        resetPCfg();
+        pCfg.angle = rand(0, Math.PI * 2);
+        pCfg.velocity = rand(2.4, 6.8) * velMult; pCfg.drag = 0.948; pCfg.decay = rand(0.011, 0.015);
+        pCfg.trailLength = 4; pCfg.size = 1.5; pCfg.alpha = 0.16;
+        pCfg.deathBehavior = DEATH_GHOST; pCfg.velMult = velMult; pCfg.charge = charge;
+        spawnParticle(x, y, dimColor, pCfg);
+      }
+      spawnGlow(x, y, '210,220,255', 88 * velMult, 0.13 * (1 + charge), 0.018);
+    }
+
+    function shellDoubleBreak({ x, y, palette, countMult, velMult, charge }) {
+      const count = Math.floor(36 * countMult);
+      const color = pick(palette);
+      for (let i = 0; i < count; i++) {
+        resetPCfg();
+        pCfg.angle = rand(0, Math.PI * 2);
+        pCfg.velocity = rand(3.2, 5.8) * velMult; pCfg.drag = 0.945; pCfg.decay = rand(0.016, 0.022);
+        pCfg.trailLength = 4; pCfg.size = 1.8 * (1 + charge * 0.2);
+        pCfg.deathBehavior = DEATH_DOUBLE_BREAK; pCfg.velMult = velMult; pCfg.charge = charge;
+        pCfg.secondaryColor = pick(palette);
+        spawnParticle(x, y, color, pCfg);
+      }
+      spawnGlow(x, y, color, 98 * velMult, 0.14 * (1 + charge), 0.016);
+    }
+
+    function queueLaunch(delayMs, tx, ty, type = null, palette = null, startX = null, charge = 0, prestige = false) {
+      scheduledLaunches.push({ time: performance.now() + delayMs, tx, ty, type, palette, startX, charge, prestige });
+    }
+
+    function flushLaunchQueue(now) {
+      if (!scheduledLaunches.length) return;
+      for (let i = scheduledLaunches.length - 1; i >= 0; i--) {
+        const item = scheduledLaunches[i];
+        if (now >= item.time) {
+          spawnShellTo(item.tx, item.ty, item.type, item.palette, item.startX, item.charge, item.prestige);
+          const last = scheduledLaunches[scheduledLaunches.length - 1];
+          scheduledLaunches[i] = last;
+          scheduledLaunches.pop();
+        }
+      }
+    }
+
+    function launchPattern(pattern, type = null, palette = null, charge = 0) {
+      const topBand = rand(height * 0.2, height * 0.42);
+      const pType = type || weightedShellType(charge);
+      const pPal = palette || pick(PALETTES);
+      const prestige = charge >= CONFIG.CHARGE.prestigeThreshold;
+
+      switch (pattern) {
+        case 'mirror':
+          queueLaunch(0, width * 0.3, topBand, pType, pPal, width * 0.25, charge, prestige);
+          queueLaunch(0, width * 0.7, topBand, pType, pPal, width * 0.75, charge, prestige);
+          break;
+        case 'fan':
+          for (let i = 0; i < 5; i++) {
+            const tx = width * 0.2 + (width * 0.6) * (i / 4);
+            const ty = topBand + Math.abs(2 - i) * 28;
+            queueLaunch(i * 130, tx, ty, pType, pPal, width * 0.5, charge, prestige);
+          }
+          break;
+        case 'finale':
+          for (let i = 0; i < 7; i++) {
+            queueLaunch(
+              i * 90, width * 0.12 + (width * 0.76) * (i / 6), rand(height * 0.18, height * 0.34),
+              weightedShellType(0.8), pick(PALETTES), width * (0.15 + 0.7 * (i / 6)), rand(0.4, 0.82), true
+            );
+          }
+          break;
+        case 'single':
+        default:
+          queueLaunch(0, rand(width * 0.2, width * 0.8), rand(height * 0.18, height * 0.42), pType, pPal, null, charge, prestige);
+          break;
+      }
+    }
+
+    function applyQualityProfile(force = false) {
+      let targetScale = qualityScale;
+      if (reducedMotion) targetScale = Math.min(targetScale, CONFIG.QUALITY.reduceMotionScale);
+      if (!CONFIG.QUALITY.enabled) targetScale = 1;
+      if (!force && Math.abs(targetScale - qualityScale) < 0.0001) return;
+
+      qualityScale = clamp(targetScale, CONFIG.QUALITY.minScale, CONFIG.QUALITY.maxScale);
+      statusEl.textContent = `Quality ${Math.round(qualityScale * 100)}%`;
+      statusEl.style.opacity = userInteracted ? '1' : '0';
+    }
+
+    function updateAdaptiveQuality(now, dt) {
+      if (!CONFIG.QUALITY.enabled || hidden) return;
+      fpsSamples.push(dt);
+      if (fpsSamples.length > CONFIG.QUALITY.sampleSize) fpsSamples.shift();
+      if (fpsSamples.length < CONFIG.QUALITY.sampleSize) return;
+      if (now - lastQualityAdjust < CONFIG.QUALITY.cooldownMs) return;
+
+      const avg = fpsSamples.reduce((a, b) => a + b, 0) / fpsSamples.length;
+      let nextScale = qualityScale;
+
+      if (avg > CONFIG.QUALITY.degradeAvgMs) {
+        nextScale = Math.max(CONFIG.QUALITY.minScale, qualityScale - CONFIG.QUALITY.stepDown);
+      } else if (!reducedMotion && avg < CONFIG.QUALITY.recoverAvgMs) {
+        nextScale = Math.min(CONFIG.QUALITY.maxScale, qualityScale + CONFIG.QUALITY.stepUp);
+      }
+
+      if (Math.abs(nextScale - qualityScale) > 0.001) {
+        qualityScale = nextScale;
+        applyQualityProfile(true);
+        lastQualityAdjust = now;
+      }
+    }
+
+    function initStars() {
+      stars = []; twinkleStars = [];
+      const baseCount = Math.floor((width * height) / 5200);
+      const twinkleCount = Math.floor(baseCount * 0.45);
+
+      for (let i = 0; i < baseCount; i++) {
+        stars.push({
+          x: Math.random() * width,
+          y: Math.random() * height * 0.88,
+          size: Math.random() * 1.15 + 0.15,
+          alpha: rand(0.06, 0.26)
+        });
+      }
+      for (let i = 0; i < twinkleCount; i++) {
+        twinkleStars.push({
+          x: Math.random() * width,
+          y: Math.random() * height * 0.88,
+          size: Math.random() * 1.2 + 0.2,
+          baseAlpha: rand(0.08, 0.34),
+          speed: rand(0.0007, 0.0028),
+          offset: rand(0, Math.PI * 2)
+        });
+      }
+    }
+
+    function rebuildBackgroundCache() {
+      if (!width || !height || !bgCtx) return;
+      bgCanvas.width = width * dpr;
+      bgCanvas.height = height * dpr;
+      bgCtx.setTransform(1, 0, 0, 1, 0, 0);
+      bgCtx.scale(dpr, dpr);
+
+      const gradient = bgCtx.createRadialGradient(width / 2, height, 0, width / 2, height, height);
+      gradient.addColorStop(0, '#0a0d20');
+      gradient.addColorStop(0.55, '#060913');
+      gradient.addColorStop(1, '#020206');
+      bgCtx.fillStyle = gradient;
+      bgCtx.fillRect(0, 0, width, height);
+
+      for (let i = 0; i < stars.length; i++) {
+        const s = stars[i];
+        bgCtx.fillStyle = `rgba(255,255,255,${s.alpha})`;
+        bgCtx.beginPath();
+        bgCtx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+        bgCtx.fill();
+      }
+
+      if (CONFIG.hazeEnabled) {
+        const haze = bgCtx.createLinearGradient(0, height * 0.55, 0, height);
+        haze.addColorStop(0, 'rgba(20,24,40,0)');
+        haze.addColorStop(1, 'rgba(20,24,40,0.11)');
+        bgCtx.fillStyle = haze;
+        bgCtx.fillRect(0, 0, width, height);
+      }
+    }
+
+    function renderBackground(now) {
+      if (!width || !height) return;
+      ctx.globalCompositeOperation = 'source-over';
+
+      if (bgCtx) {
+        ctx.drawImage(bgCanvas, 0, 0, width, height);
+      } else {
+        ctx.fillStyle = '#020206';
+        ctx.fillRect(0, 0, width, height);
+      }
+
+      if (CONFIG.backgroundPulse) {
+        const horizonLift = Math.sin(now * 0.00025) * 0.02 + 0.08;
+        ctx.fillStyle = `rgba(10,13,32,${0.02 + horizonLift * 0.15})`;
+        ctx.fillRect(0, 0, width, height);
+      }
+
+      for (let i = 0; i < twinkleStars.length; i++) {
+        const s = twinkleStars[i];
+        const twinkle = s.baseAlpha + Math.sin(now * s.speed + s.offset) * 0.16;
+        ctx.fillStyle = `rgba(255,255,255,${Math.max(0, twinkle)})`;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      for (let i = 0; i < activeCounts.smokes; i++) pools.smokes[i].draw();
+
+      if (activeCounts.glows > 0) {
+        ctx.globalCompositeOperation = 'lighter';
+        for (let i = 0; i < activeCounts.glows; i++) pools.glows[i].draw();
+        ctx.globalCompositeOperation = 'source-over';
+      }
+    }
+
+    function renderChargeVisuals(now) {
+      ctx.globalCompositeOperation = 'lighter';
+
+      activePointers.forEach((p) => {
+        const duration = now - p.startTime;
+        if (duration < CONFIG.CHARGE.minDuration) return;
+
+        const rawCharge = Math.min(
+          (duration - CONFIG.CHARGE.minDuration) /
+          (CONFIG.CHARGE.maxDuration - CONFIG.CHARGE.minDuration),
+          1
+        );
+        const ease = smoothstep01(rawCharge);
+        const coreC = p.palette[0], ringC = p.palette[1];
+        const prestige = rawCharge >= CONFIG.CHARGE.prestigeThreshold;
+
+        ctx.fillStyle = rgba(prestige ? '255,255,255' : coreC, 0.78);
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 2 + ease * 4.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        const glowRad = 28 + ease * 95;
+        const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, glowRad);
+        g.addColorStop(0, rgba(coreC, 0.15 + ease * 0.26));
+        g.addColorStop(0.45, rgba(ringC, 0.05 + ease * 0.11));
+        g.addColorStop(1, rgba(coreC, 0));
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, glowRad, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.lineCap = 'round';
+        const r1 = 14 + ease * 24;
+        const a1 = now * 0.0032;
+        ctx.strokeStyle = rgba(ringC, 0.38 + ease * 0.5);
+        ctx.lineWidth = 1.4 + ease * 2.2;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, r1, a1, a1 + Math.PI);
+        ctx.stroke();
+
+        const r2 = 25 + ease * 46;
+        const a2 = -now * 0.002;
+        ctx.strokeStyle = rgba(coreC, 0.2 + ease * 0.6);
+        ctx.lineWidth = 1 + ease * 1.5;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, r2, a2, a2 + Math.PI * 1.22);
+        ctx.stroke();
+
+        const orbitCount = prestige ? 4 : 2;
+        for (let i = 0; i < orbitCount; i++) {
+          const ang = now * (0.002 + i * 0.00035) + i * (Math.PI / orbitCount);
+          const rad = 10 + ease * (18 + i * 8);
+          ctx.fillStyle = rgba(prestige ? '255,255,255' : ringC, 0.45 + ease * 0.4);
+          ctx.beginPath();
+          ctx.arc(p.x + Math.cos(ang) * rad, p.y + Math.sin(ang) * rad, 1 + ease * 1.7, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        if (Math.random() < ease * 0.85) {
+          const sAng = rand(0, Math.PI * 2), sDist = rand(r1, r2 + 12), sLen = rand(4, 12);
+          ctx.strokeStyle = rgba('255,255,255', prestige ? 0.82 : 0.62);
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(p.x + Math.cos(sAng) * sDist, p.y + Math.sin(sAng) * sDist);
+          ctx.lineTo(p.x + Math.cos(sAng) * (sDist - sLen), p.y + Math.sin(sAng) * (sDist - sLen));
+          ctx.stroke();
+        }
+      });
+
+      ctx.globalCompositeOperation = 'source-over';
+    }
+
+    function resize() {
+      const newW = window.innerWidth;
+      const newH = window.innerHeight;
+      if (newW === width && newH === height) return;
+      if (!newW || !newH) return;
+
+      width = newW;
+      height = newH;
+      dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+      canvas.width = width * dpr;
+      canvas.height = height * dpr;
+      canvas.style.width = width + 'px';
+      canvas.style.height = height + 'px';
+
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.scale(dpr, dpr);
+
+      initStars();
+      rebuildBackgroundCache();
+    }
+
+    function beginInteraction(pointerId, x, y) {
+      if (!userInteracted) {
+        userInteracted = true;
+        hint.style.opacity = '0';
+        statusEl.style.opacity = '1';
+      }
+      activePointers.set(pointerId, {
+        x,
+        y,
+        startTime: performance.now(),
+        palette: pick(PALETTES)
+      });
+    }
+
+    function moveInteraction(pointerId, x, y) {
+      const p = activePointers.get(pointerId);
+      if (!p) return;
+      p.x = x;
+      p.y = y;
+    }
+
+    function endInteraction(pointerId) {
+      const p = activePointers.get(pointerId);
+      if (!p) return;
+
+      activePointers.delete(pointerId);
+
+      const duration = performance.now() - p.startTime;
+      let charge = 0;
+      if (duration >= CONFIG.CHARGE.minDuration) {
+        charge = Math.min(
+          (duration - CONFIG.CHARGE.minDuration) /
+          (CONFIG.CHARGE.maxDuration - CONFIG.CHARGE.minDuration),
+          1
+        );
+      }
+
+      spawnShellTo(
+        p.x,
+        Math.max(height * 0.1, p.y),
+        null,
+        p.palette,
+        p.x + rand(-30, 30),
+        charge,
+        charge >= CONFIG.CHARGE.prestigeThreshold
+      );
+    }
+
+    function handlePointerDown(e) {
+      if (e.button !== 0) return;
+      if (e.pointerType === 'mouse' && performance.now() < suppressMouseUntil) return;
+      if (e.cancelable) e.preventDefault();
+
+      beginInteraction(e.pointerId, e.clientX, e.clientY);
+
+      if (canvas.setPointerCapture) {
+        try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
+      }
+    }
+
+    function handlePointerMove(e) {
+      moveInteraction(e.pointerId, e.clientX, e.clientY);
+    }
+
+    function handlePointerUp(e) {
+      if (canvas.releasePointerCapture) {
+        try {
+          if (canvas.hasPointerCapture && canvas.hasPointerCapture(e.pointerId)) {
+            canvas.releasePointerCapture(e.pointerId);
+          }
+        } catch (_) {}
+      }
+      endInteraction(e.pointerId);
+    }
+
+    function handlePointerCancel(e) {
+      if (canvas.releasePointerCapture) {
+        try {
+          if (canvas.hasPointerCapture && canvas.hasPointerCapture(e.pointerId)) {
+            canvas.releasePointerCapture(e.pointerId);
+          }
+        } catch (_) {}
+      }
+      activePointers.delete(e.pointerId);
+    }
+
+    function handleTouchStart(e) {
+      if (window.PointerEvent) return;
+      if (e.cancelable) e.preventDefault();
+
+      suppressMouseUntil = performance.now() + 800;
+
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        const t = e.changedTouches[i];
+        beginInteraction(`touch-${t.identifier}`, t.clientX, t.clientY);
+      }
+    }
+
+    function handleTouchMove(e) {
+      if (window.PointerEvent) return;
+      if (e.cancelable) e.preventDefault();
+
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        const t = e.changedTouches[i];
+        moveInteraction(`touch-${t.identifier}`, t.clientX, t.clientY);
+      }
+    }
+
+    function handleTouchEnd(e) {
+      if (window.PointerEvent) return;
+      if (e.cancelable) e.preventDefault();
+
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        const t = e.changedTouches[i];
+        endInteraction(`touch-${t.identifier}`);
+      }
+    }
+
+    function handleMouseDown(e) {
+      if (window.PointerEvent) return;
+      if (e.button !== 0) return;
+      if (performance.now() < suppressMouseUntil) return;
+      if (e.cancelable) e.preventDefault();
+
+      beginInteraction('mouse', e.clientX, e.clientY);
+    }
+
+    function handleMouseMove(e) {
+      if (window.PointerEvent) return;
+      moveInteraction('mouse', e.clientX, e.clientY);
+    }
+
+    function handleMouseUp() {
+      if (window.PointerEvent) return;
+      endInteraction('mouse');
+    }
+
+    function bindReducedMotionListener() {
+      if (!window.matchMedia) return;
+      const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+      const apply = () => {
+        reducedMotion = mq.matches;
+        qualityScale = reducedMotion
+          ? Math.min(qualityScale, CONFIG.QUALITY.reduceMotionScale)
+          : Math.max(qualityScale, 0.82);
+        applyQualityProfile(true);
+      };
+      if (mq.addEventListener) mq.addEventListener('change', apply);
+      else if (mq.addListener) mq.addListener(apply);
+    }
+
+    document.addEventListener('visibilitychange', () => {
+      hidden = document.hidden;
+      if (!hidden) {
+        lastNow = performance.now();
+      } else {
+        activePointers.clear();
+      }
+    });
+
+    function loop(now) {
+      requestAnimationFrame(loop);
+
+      if (!width || !height) return;
+
+      if (!lastNow) lastNow = now;
+      let dt = now - lastNow;
+      if (dt > 100) dt = 16.666;
+      const timeScale = dt / 16.666;
+      lastNow = now;
+
+      if (hidden) return;
+
+      updateAdaptiveQuality(now, dt);
+      flushLaunchQueue(now);
+
+      for (let i = activeCounts.fireworks - 1; i >= 0; i--) {
+        if (pools.fireworks[i].update(timeScale)) {
+          const last = pools.fireworks[activeCounts.fireworks - 1];
+          pools.fireworks[activeCounts.fireworks - 1] = pools.fireworks[i];
+          pools.fireworks[i] = last;
+          activeCounts.fireworks--;
+        }
+      }
+      for (let i = activeCounts.particles - 1; i >= 0; i--) {
+        if (pools.particles[i].update(timeScale)) {
+          const last = pools.particles[activeCounts.particles - 1];
+          pools.particles[activeCounts.particles - 1] = pools.particles[i];
+          pools.particles[i] = last;
+          activeCounts.particles--;
+        }
+      }
+      for (let i = activeCounts.smokes - 1; i >= 0; i--) {
+        if (pools.smokes[i].update(timeScale)) {
+          const last = pools.smokes[activeCounts.smokes - 1];
+          pools.smokes[activeCounts.smokes - 1] = pools.smokes[i];
+          pools.smokes[i] = last;
+          activeCounts.smokes--;
+        }
+      }
+      for (let i = activeCounts.glows - 1; i >= 0; i--) {
+        if (pools.glows[i].update(timeScale)) {
+          const last = pools.glows[activeCounts.glows - 1];
+          pools.glows[activeCounts.glows - 1] = pools.glows[i];
+          pools.glows[i] = last;
+          activeCounts.glows--;
+        }
+      }
+      for (let i = activeCounts.embers - 1; i >= 0; i--) {
+        if (pools.embers[i].update(timeScale)) {
+          const last = pools.embers[activeCounts.embers - 1];
+          pools.embers[activeCounts.embers - 1] = pools.embers[i];
+          pools.embers[i] = last;
+          activeCounts.embers--;
+        }
+      }
+      for (let i = activeCounts.shockwaves - 1; i >= 0; i--) {
+        if (pools.shockwaves[i].update(timeScale)) {
+          const last = pools.shockwaves[activeCounts.shockwaves - 1];
+          pools.shockwaves[activeCounts.shockwaves - 1] = pools.shockwaves[i];
+          pools.shockwaves[i] = last;
+          activeCounts.shockwaves--;
+        }
+      }
+
+      renderBackground(now);
+
+      ctx.globalCompositeOperation = 'lighter';
+      for (let i = 0; i < activeCounts.fireworks; i++) pools.fireworks[i].draw();
+      for (let i = 0; i < activeCounts.particles; i++) pools.particles[i].draw(now);
+      renderChargeVisuals(now);
+      for (let i = 0; i < activeCounts.shockwaves; i++) pools.shockwaves[i].draw();
+
+      ctx.globalCompositeOperation = 'source-over';
+      for (let i = 0; i < activeCounts.embers; i++) pools.embers[i].draw();
+
+      if (!userInteracted) {
+        autoLaunchTimer -= 1 * timeScale;
+        if (autoLaunchTimer <= 0) {
+          if (reducedMotion) {
+            launchPattern('single', null, null, 0);
+            autoLaunchTimer = rand(CONFIG.autoLaunchMin * 2.5, CONFIG.autoLaunchMax * 2.5);
+          } else {
+            const isFinale = Math.random() < CONFIG.finaleChance;
+            const charge = isFinale ? rand(0.5, 1.0) : (Math.random() < 0.22 ? rand(0.2, 0.6) : 0);
+            launchPattern(isFinale ? 'finale' : pick(['single', 'mirror', 'fan']), null, null, charge);
+            autoLaunchTimer = rand(CONFIG.autoLaunchMin, CONFIG.autoLaunchMax);
+          }
+        }
+      }
+    }
+
+    canvas.addEventListener('pointerdown', handlePointerDown, { passive: false });
+    canvas.addEventListener('pointermove', handlePointerMove, { passive: false });
+    canvas.addEventListener('pointerup', handlePointerUp, { passive: false });
+    canvas.addEventListener('pointercancel', handlePointerCancel, { passive: false });
+
+    window.addEventListener('pointerup', handlePointerUp, { passive: false });
+    window.addEventListener('pointercancel', handlePointerCancel, { passive: false });
+
+    canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+    canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
+    canvas.addEventListener('touchend', handleTouchEnd, { passive: false });
+    canvas.addEventListener('touchcancel', handleTouchEnd, { passive: false });
+
+    canvas.addEventListener('mousedown', handleMouseDown, { passive: false });
+    window.addEventListener('mousemove', handleMouseMove, { passive: false });
+    window.addEventListener('mouseup', handleMouseUp, { passive: false });
+
+    canvas.addEventListener('contextmenu', e => e.preventDefault());
+    window.addEventListener('resize', resize);
+
+    preAllocatePools();
+    bindReducedMotionListener();
+    applyQualityProfile(true);
+    resize();
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>
