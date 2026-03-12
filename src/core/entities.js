@@ -1,0 +1,213 @@
+import { rand, rgba, weightedShellType } from './utils.js';
+
+export class PooledGlow {
+  init(x, y, color, radius, alpha, decay, rise = -0.02) {
+    this.x = x; this.y = y; this.color = color;
+    this.radius = radius; this.alpha = alpha;
+    this.decay = decay; this.rise = rise;
+  }
+  update(timeScale) {
+    this.y += this.rise * timeScale;
+    this.radius += 0.7 * timeScale;
+    this.alpha -= this.decay * timeScale;
+    return this.alpha <= 0;
+  }
+  draw(ctx) {
+    const g = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.radius);
+    g.addColorStop(0, rgba(this.color, this.alpha));
+    g.addColorStop(0.35, rgba(this.color, this.alpha * 0.35));
+    g.addColorStop(1, rgba(this.color, 0));
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2); ctx.fill();
+  }
+}
+
+export class PooledSmoke {
+  init(x, y, color) {
+    this.x = x + rand(-16, 16); this.y = y + rand(-16, 16);
+    this.vx = rand(-0.28, 0.28); this.vy = rand(-0.38, -0.05);
+    this.size = rand(18, 42); this.alpha = rand(0.04, 0.085);
+    this.decay = rand(0.0005, 0.0011); this.color = color || '110,110,120';
+  }
+  update(timeScale) {
+    this.x += this.vx * timeScale; this.y += this.vy * timeScale;
+    this.size += 0.22 * timeScale; this.alpha -= this.decay * timeScale;
+    return this.alpha <= 0;
+  }
+  draw(ctx) {
+    ctx.fillStyle = rgba(this.color, this.alpha);
+    ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2); ctx.fill();
+  }
+}
+
+export class PooledEmber {
+  init(x, y, color) {
+    this.x = x + rand(-10, 10); this.y = y + rand(-4, 4);
+    this.vx = rand(-0.45, 0.45); this.vy = rand(-0.25, 0.2);
+    this.color = color; this.alpha = rand(0.18, 0.38);
+    this.size = rand(0.9, 1.8); this.decay = rand(0.0035, 0.008);
+  }
+  update(timeScale) {
+    this.x += this.vx * timeScale; this.y += this.vy * timeScale;
+    this.vy += 0.008 * timeScale;
+    this.vx *= Math.pow(0.992, timeScale);
+    this.alpha -= this.decay * timeScale;
+    return this.alpha <= 0;
+  }
+  draw(ctx) {
+    ctx.fillStyle = rgba(this.color, this.alpha);
+    ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2); ctx.fill();
+  }
+}
+
+export class PooledShockwave {
+  init(x, y, color, charge = 0) {
+    this.x = x; this.y = y; this.color = color;
+    this.radius = 10 + charge * 18;
+    this.alpha = 0.22 + charge * 0.12;
+    this.lineWidth = 1.2 + charge * 2.2;
+    this.growth = 3.2 + charge * 3.6;
+    this.decay = 0.012 + (1 - charge) * 0.004;
+  }
+  update(timeScale) {
+    this.radius += this.growth * timeScale;
+    this.alpha -= this.decay * timeScale;
+    return this.alpha <= 0;
+  }
+  draw(ctx) {
+    ctx.strokeStyle = rgba(this.color, this.alpha);
+    ctx.lineWidth = this.lineWidth;
+    ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2); ctx.stroke();
+  }
+}
+
+export class PooledParticle {
+  constructor(engine) { this.engine = engine; this.trail = new Float32Array(64); }
+  init(x, y, color, cfg) {
+    this.x = x; this.y = y; this.color = color;
+    this.alpha = cfg.alpha; this.decay = cfg.decay;
+    this.size = cfg.size; this.drag = cfg.drag;
+    this.gravMult = cfg.gravMult; this.trailLength = cfg.trailLength;
+    this.isFlash = cfg.isFlash; this.isStrobe = cfg.isStrobe;
+    this.strobeSpeed = rand(0.07, 0.14); this.sparkleChance = cfg.sparkleChance;
+    this.deathBehavior = cfg.deathBehavior; this.velMult = cfg.velMult;
+    this.charge = cfg.charge; this.secondaryColor = cfg.secondaryColor;
+    const a = cfg.angle;
+    this.vx = Math.cos(a) * cfg.velocity + cfg.inheritVX;
+    this.vy = Math.sin(a) * cfg.velocity + cfg.inheritVY;
+    this.trailIndex = 0; this.trailCount = 0;
+  }
+  update(timeScale) {
+    if (!this.isFlash) {
+      this.trailIndex = (this.trailIndex - 2) & 62;
+      this.trail[this.trailIndex] = this.x;
+      this.trail[this.trailIndex + 1] = this.y;
+      if (this.trailCount < this.trailLength) this.trailCount++;
+      this.vx *= Math.pow(this.drag, timeScale);
+      this.vy *= Math.pow(this.drag, timeScale);
+      this.vy += this.engine.config.gravity * this.gravMult * timeScale;
+      this.x += this.vx * timeScale;
+      this.y += this.vy * timeScale;
+    }
+    this.alpha -= this.decay * timeScale;
+    if (this.alpha <= 0) {
+      if (this.deathBehavior !== 0) this.engine.dispatchDeathBehavior(this);
+      return true;
+    }
+    return false;
+  }
+  draw(ctx, now) {
+    if (this.isFlash) {
+      ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+      ctx.fillStyle = rgba(this.color, Math.max(0, this.alpha)); ctx.fill();
+      return;
+    }
+    if (this.trailCount < 2) return;
+
+    let currentAlpha = this.alpha;
+    if (this.isStrobe) currentAlpha = Math.sin(now * this.strobeSpeed) > 0 ? this.alpha : 0.03;
+
+    if (this.sparkleChance > 0 && Math.random() < this.sparkleChance) {
+      ctx.strokeStyle = `rgba(255,255,255,${currentAlpha})`;
+      ctx.lineWidth = this.size * 1.4;
+    } else {
+      ctx.strokeStyle = rgba(this.color, currentAlpha);
+      ctx.lineWidth = this.size;
+    }
+
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    let idx = this.trailIndex;
+    ctx.moveTo(this.trail[idx], this.trail[idx + 1]);
+    for (let i = 1; i < this.trailCount; i++) {
+      idx = (idx + 2) & 62;
+      ctx.lineTo(this.trail[idx], this.trail[idx + 1]);
+    }
+    ctx.stroke();
+  }
+}
+
+export class PooledFirework {
+  constructor(engine) { this.engine = engine; this.history = new Float32Array(64); }
+  init(startX, startY, targetX, targetY, type, palette, charge = 0, prestige = false) {
+    this.x = startX; this.y = startY;
+    this.targetX = targetX; this.targetY = targetY;
+    this.charge = charge; this.prestige = prestige;
+    this.type = type || weightedShellType(this.engine.config, charge);
+    this.palette = palette;
+
+    this.timeToTarget = rand(38, 58) * (prestige ? 1.05 : 1);
+    this.vx = (targetX - startX) / this.timeToTarget;
+    this.vy = (targetY - startY) / this.timeToTarget - 0.5 * this.engine.config.gravity * this.timeToTarget;
+
+    this.isHeavy = ['palm', 'willow', 'brocade', 'doubleBreak'].includes(this.type) || charge > 0.5 || prestige;
+    this.historyLength = Math.floor((this.isHeavy ? 7 : 4) + charge * 5 + (prestige ? 2 : 0));
+    this.color = prestige ? '255,245,220' : (this.isHeavy ? '255,220,150' : '255,180,110');
+    this.lineWidth = (this.isHeavy ? 2.8 : 1.6) + charge * 1.5 + (prestige ? 0.7 : 0);
+    this.sparkRate = (this.isHeavy ? 0.25 : 0.12) + charge * 0.2 + (prestige ? 0.1 : 0);
+    this.launchGlowColor = this.palette[0];
+    this.histIndex = 0; this.histCount = 0;
+  }
+  update(timeScale) {
+    this.histIndex = (this.histIndex - 2) & 62;
+    this.history[this.histIndex] = this.x;
+    this.history[this.histIndex + 1] = this.y;
+    if (this.histCount < this.historyLength) this.histCount++;
+
+    this.vy += this.engine.config.gravity * timeScale;
+    this.x += this.vx * timeScale;
+    this.y += this.vy * timeScale;
+    this.timeToTarget -= 1 * timeScale;
+
+    if (Math.random() < this.sparkRate) {
+      this.engine.spawnAscentSpark(this.x, this.y, this.color, this.vx, this.vy, this.type, this.charge, this.prestige);
+    }
+    if (Math.random() < 0.07 && this.engine.config.smokeEnabled) {
+      this.engine.spawnSmokeBurst(this.x, this.y, this.launchGlowColor, 1);
+    }
+    if (this.timeToTarget <= 0 || this.y <= this.targetY) {
+      this.engine.createExplosion(this.x, this.y, this.type, this.palette, this.charge, this.prestige);
+      return true;
+    }
+    return false;
+  }
+  draw(ctx) {
+    if (this.histCount > 1) {
+      ctx.strokeStyle = rgba(this.color, 0.7);
+      ctx.lineWidth = this.lineWidth;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      let idx = this.histIndex;
+      ctx.moveTo(this.history[idx], this.history[idx + 1]);
+      for (let i = 1; i < this.histCount; i++) {
+        idx = (idx + 2) & 62;
+        ctx.lineTo(this.history[idx], this.history[idx + 1]);
+      }
+      ctx.stroke();
+    }
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.isHeavy ? 2.2 : 1.6, 0, Math.PI * 2);
+    ctx.fillStyle = rgba(this.color, 0.95);
+    ctx.fill();
+  }
+}
