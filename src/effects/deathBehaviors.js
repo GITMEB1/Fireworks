@@ -31,6 +31,7 @@ export function createDeathBehaviorDispatcher(engine) {
           cfg.trailLength = 1; cfg.size = 1.2; cfg.isStrobe = Math.random() < 0.35;
           engine.spawnParticle(p.x, p.y, '255,235,180', cfg);
         }
+        engine.audio.playCrackle();
         break;
       }
 

@@ -8,14 +8,16 @@ import { createRenderer } from '../render/renderer.js';
 import { createResizeSystem } from '../systems/resizeSystem.js';
 import { createQualitySystem } from '../systems/qualitySystem.js';
 import { createInputSystem } from '../systems/inputSystem.js';
+import { createAudioSystem } from '../systems/audioSystem.js';
 import { bindReducedMotionListener } from '../systems/motionPreferenceSystem.js';
 
 export function createFireworksApp({ canvas, hintEl, statusEl, configOverrides = {} }) {
   const config = createConfig(configOverrides);
   const ctx = create2DContext(canvas);
   const state = createAppState();
+  const audio = createAudioSystem();
 
-  const engine = createEngine({ config, palettes: PALETTES, state });
+  const engine = createEngine({ config, palettes: PALETTES, state, audio });
   const backgroundRenderer = createBackgroundRenderer({ canvas, ctx, config, state });
   const renderer = createRenderer({ ctx, backgroundRenderer, activePointers: state.activePointers, config, state });
   const resizeSystem = createResizeSystem({ canvas, ctx, state, backgroundRenderer });

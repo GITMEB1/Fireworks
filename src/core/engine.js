@@ -4,7 +4,7 @@ import { createShellRegistry } from '../shells/registry.js';
 import { createLaunchPatternRunner } from '../patterns/launchPatterns.js';
 import { createDeathBehaviorDispatcher } from '../effects/deathBehaviors.js';
 
-export function createEngine({ config, palettes, state }) {
+export function createEngine({ config, palettes, state, audio }) {
   const pools = { fireworks: [], particles: [], smokes: [], glows: [], embers: [], shockwaves: [] };
   const activeCounts = { fireworks: 0, particles: 0, smokes: 0, glows: 0, embers: 0, shockwaves: 0 };
 
@@ -39,7 +39,8 @@ export function createEngine({ config, palettes, state }) {
     createExplosion: null,
     dispatchDeathBehavior: null,
     launchPattern: null,
-    update
+    update,
+    audio
   };
 
   const shellRegistry = createShellRegistry(engine);
@@ -158,6 +159,7 @@ export function createEngine({ config, palettes, state }) {
     state.flashTimer = 100;
     state.flashColor = color || '255,255,255';
     state.sleepTimer = 60;
+    audio.playBassDrop();
   }
 
   function registerShot(type) {
@@ -207,14 +209,19 @@ export function createEngine({ config, palettes, state }) {
     }
 
     // Sputter sparks for active pointers
-    if (state.activePointers) {
+    let maxCharge = 0;
+    if (state.activePointers && state.activePointers.size > 0) {
       for (const p of state.activePointers.values()) {
         if (Math.random() < Math.max(0.1, timeScale * 0.4)) {
           const color = p.palette ? pick(p.palette) : '255,255,255';
           engine.spawnContinuousSpark(p.x, p.y, color, rand(-1, 1), rand(-1, 1));
         }
+        const duration = now - p.startTime;
+        const charge = Math.min(1.0, Math.max(0, (duration - config.CHARGE.minDuration) / (config.CHARGE.maxDuration - config.CHARGE.minDuration)));
+        if (charge > maxCharge) maxCharge = charge;
       }
     }
+    audio.updateCharge(maxCharge);
 
     compactAndUpdate('fireworks', timeScale);
     compactAndUpdate('particles', timeScale);
