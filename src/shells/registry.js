@@ -213,11 +213,36 @@ export function createShellRegistry(engine) {
     }
   }
 
-  const shells = { peony: shellPeony, willow: shellWillow, ring: shellRing, crossette: shellCrossette, crackle: shellCrackle, palm: shellPalm, spiral: shellSpiral, brocade: shellBrocade, ghost: shellGhost, doubleBreak: shellDoubleBreak, fizzle: shellFizzle, heart: shellHeart, star: shellStar, smiley: shellSmiley };
+  function shellDirty({ x, y, palettes, countMult }) {
+    // Unstable, multi-colored burst with heavy smoke
+    const count = Math.floor(45 * countMult);
+    engine.spawnSmokeBurst(x, y, '120,120,130', 8);
+    for (let i = 0; i < count; i++) {
+      engine.resetPCfg();
+      engine.pCfg.angle = rand(0, Math.PI * 2);
+      engine.pCfg.velocity = rand(1.5, 9.5);
+      engine.pCfg.drag = rand(0.88, 0.94); // Heavy/uneven drag
+      engine.pCfg.decay = rand(0.015, 0.035);
+      engine.pCfg.trailLength = rand(1, 4);
+      engine.pCfg.size = rand(1.2, 2.8);
+      engine.pCfg.sparkleChance = 0.15;
+      // Pick randomly from all palettes for an "unstable" look
+      const randomPalette = pick(palettes);
+      engine.spawnParticle(x, y, pick(randomPalette), engine.pCfg);
+    }
+  }
+
+  const shells = { peony: shellPeony, willow: shellWillow, ring: shellRing, crossette: shellCrossette, crackle: shellCrackle, palm: shellPalm, spiral: shellSpiral, brocade: shellBrocade, ghost: shellGhost, doubleBreak: shellDoubleBreak, fizzle: shellFizzle, heart: shellHeart, star: shellStar, smiley: shellSmiley, dirty: shellDirty };
 
   function createExplosion(x, y, type, palette, charge = 0, prestige = false) {
     if (type === 'fizzle') {
         shells.fizzle({ x, y, palette });
+        return;
+    }
+
+    if (type === 'dirty') {
+        engine.spawnFlash(x, y, '255,255,255', 40, 0.3);
+        shells.dirty({ x, y, palettes: engine.palettes, countMult: 1.2 });
         return;
     }
 

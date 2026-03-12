@@ -69,8 +69,8 @@ export function createInputSystem({ canvas, hintEl, statusEl, palettes, state, c
     }
 
     if (chargeState === 'overcharge') {
-      engine.registerShot('fizzle');
-      engine.spawnShellTo(p.targetX, p.targetY, 'fizzle', p.palette, p.launchX, 0, false);
+      engine.registerShot('dirty');
+      engine.spawnShellTo(p.targetX, p.targetY, 'dirty', p.palette, p.launchX, 0, false);
     } else if (chargeState === 'perfect') {
       engine.registerShot('supernova');
       engine.spawnShellTo(p.targetX, p.targetY, null, p.palette, p.launchX, 1.0, true);

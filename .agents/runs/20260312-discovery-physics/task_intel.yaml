@@ -1,0 +1,10 @@
+task_id: T-20260312-discovery-physics
+objective: Identify high-leverage physics and gameplay mechanics enhancement opportunities in the Fireworks simulator
+risk_level: medium
+freshness_level: moderate
+audience: Developer + product owner
+mode: deep
+success_criteria:
+  - "≥5 distinct, evidence-backed opportunity areas ranked by impact/effort"
+  - "Each opportunity links to a specific file or system seam in the codebase"
+  - "Opportunities are grounded in player experience data, design patterns, OR platform capability"

@@ -1,0 +1,71 @@
+- ranking:
+    id: "OPP-002"
+    title: "Overcharge Buffer (Dirty Burst)"
+    impact: 5
+    effort: 2
+    leverage: 2.5
+    quadrant: "Quick Win"
+    case: "Directly addresses the primary source of player frustration and retention drop-off identified in Stage 2."
+
+- ranking:
+    id: "OPP-003"
+    title: "Supernova Micro-pauses (Hit Stop)"
+    impact: 3
+    effort: 1
+    leverage: 3.0
+    quadrant: "Quick Win"
+    case: "Negligible effort; high perceived impact on 'game feel' and power fantasy."
+
+- ranking:
+    id: "OPP-007"
+    title: "Dynamic Bloom Filter"
+    impact: 3
+    effort: 1
+    leverage: 3.0
+    quadrant: "Quick Win"
+    case: "Adds a premium visual layer with very low complexity; leverages modern Canvas API capability."
+
+- ranking:
+    id: "OPP-004"
+    title: "Procedural Audio Tension"
+    impact: 5
+    effort: 3
+    leverage: 1.67
+    quadrant: "Big Bet"
+    case: "Fundamental enhancement that brings the application to life; worth the implementation overhead."
+
+- ranking:
+    id: "OPP-005"
+    title: "Trajectory Prediction Arc"
+    impact: 4
+    effort: 3
+    leverage: 1.33
+    quadrant: "Big Bet"
+    case: "Significantly improves skill-based gameplay and target acquisition in the slingshot mode."
+
+- ranking:
+    id: "OPP-001"
+    title: "Atmospheric Drag Physics"
+    impact: 2
+    effort: 1
+    leverage: 2.0
+    quadrant: "Fill-in"
+    case: "Adds subtle realism; easy to ship alongside other physics tweaks."
+
+- ranking:
+    id: "OPP-008"
+    title: "Tilt-to-Aim Physics"
+    impact: 3
+    effort: 3
+    leverage: 1.0
+    quadrant: "Big Bet"
+    case: "Adds a physical dimension to mobile play, though requires sensor permissions."
+
+- ranking:
+    id: "OPP-006"
+    title: "Offscreen Physics Worker"
+    impact: 2
+    effort: 5
+    leverage: 0.4
+    quadrant: "Avoid"
+    case: "High engineering cost for low visible impact at current particle limits."

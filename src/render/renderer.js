@@ -17,8 +17,16 @@ export function createRenderer({ ctx, backgroundRenderer, activePointers, config
     ctx.globalCompositeOperation = 'source-over';
     for (let i = 0; i < engine.activeCounts.embers; i++) engine.pools.embers[i].draw(ctx);
 
-    // --- Bloom Pass ---
+    // --- Dynamic Bloom Pass ---
     if (engine.state.qualityScale >= 0.7 && !engine.state.reducedMotion) {
+      // Calculate dynamic intensity based on engine activity
+      // Base intensity from particle count (capped at maxParticles equivalent)
+      const particleIntensity = Math.min(engine.activeCounts.particles / (config.LIMITS.maxParticles * 0.5), 1.0);
+      // Extra punch from shockwaves and flashes
+      const impactIntensity = Math.min((engine.activeCounts.shockwaves * 0.15) + (engine.state.flashTimer > 0 ? 0.6 : 0), 1.0);
+      
+      const bloomIntensity = Math.min(0.1 + (particleIntensity * 0.4) + (impactIntensity * 0.5), 1.0);
+      
       const scale = Math.max(0.15, engine.state.qualityScale * 0.35); // 0.15 to 0.35 resolution
       const bw = Math.floor(ctx.canvas.width * scale);
       const bh = Math.floor(ctx.canvas.height * scale);
@@ -31,14 +39,15 @@ export function createRenderer({ ctx, backgroundRenderer, activePointers, config
       }
 
       bloomCtx.clearRect(0, 0, bw, bh);
-      // High blur filter on small canvas
-      bloomCtx.filter = `blur(${Math.max(2, 6 * scale)}px)`;
+      // Blur radius also scales slightly with intensity for larger "washes"
+      const blurRadius = Math.max(2, (4 + bloomIntensity * 8) * scale);
+      bloomCtx.filter = `blur(${blurRadius}px)`;
       bloomCtx.drawImage(ctx.canvas, 0, 0, bw, bh);
       bloomCtx.filter = 'none';
 
-      // Composite bloom back over main canvas
+      // Composite bloom back over main canvas with dynamic alpha
       ctx.globalCompositeOperation = 'lighter';
-      ctx.globalAlpha = 0.4;
+      ctx.globalAlpha = 0.2 + (bloomIntensity * 0.5); // alpha ranges from 0.2 to 0.7
       ctx.drawImage(bloomCanvas, 0, 0, ctx.canvas.width, ctx.canvas.height);
       ctx.globalAlpha = 1.0;
       ctx.globalCompositeOperation = 'source-over';

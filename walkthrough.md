@@ -16,7 +16,13 @@ When a Supernova is triggered, several "juice" effects activate simultaneously:
 - **Screen Shake:** The entire canvas vibrates violently, giving the explosion physical weight.
 - **Color Flash:** A full-screen additive flash of the firework's primary color burns the effect into the background.
 
-### 3. The Fizzle Penalty
+### 4. Dynamic Bloom Filter
+The visual fidelity has been upgraded with a reactive bloom pass:
+- **Reactive Intensity:** The glow intensity scales dynamically based on particle counts and shockwave impacts.
+- **Hit Punch:** Supernovas and flash events drive a temporary "over-bloom" that decays naturally, making explosions feel more physical.
+- **Adaptive Quality:** The effect automatically adjusts its resolution and blur radius based on the engine's quality scaling to preserve performance.
+
+### 5. The Fizzle Penalty
 Overcharged shots launch a projectile that fails to explode properly, emitting only grey smoke and weak sparks, creating a clear risk/reward loop.
 
 ## Implementation Details
@@ -33,6 +39,10 @@ Overcharged shots launch a projectile that fails to explode properly, emitting o
 - Updated `renderChargeVisuals` to provide visual feedback for the new states.
 - The "White-Hot" effect increases orbit counts and spark frequency to signal power.
 
+### Renderer (`src/render/renderer.js`)
+- Implemented the dynamic bloom pass logic.
+- Linked `bloomIntensity` and `blurRadius` to `engine.activeCounts` and `state.flashTimer`.
+
 ### Main Loop (`src/app/createFireworksApp.js`)
 - Injected time dilation and screen shake logic into the `loop` function.
 - Time dilation affects the `engine.update` timestep, while screen shake applies a randomized translation to the `ctx` before rendering.
@@ -40,4 +50,5 @@ Overcharged shots launch a projectile that fails to explode properly, emitting o
 ## Verification
 - **Manual Test:** Hold click until the indicator turns white; release for Supernova.
 - **Manual Test:** Hold click until the indicator turns grey; release for Fizzle.
+- **Manual Test:** Observe the intensified "glow" during large explosions or Supernovas compared to single rocket launches.
 - **Manual Test:** Verify that normal clicking still produces standard fireworks.

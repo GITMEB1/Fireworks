@@ -168,7 +168,8 @@ export function createEngine({ config, palettes, state }) {
         state.combo = 0; // Reset combo when entering Fever
       }
     } else {
-      state.combo = 0; // Reset combo on normal shots or fizzles
+      // Normal or dirty shots reset the combo
+      state.combo = 0;
     }
   }
 

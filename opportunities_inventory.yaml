@@ -1,0 +1,99 @@
+- opportunity:
+    id: "OPP-001"
+    title: "Atmospheric Drag Physics"
+    source_stages: [stage_1_architecture, stage_3_benchmarking]
+    file_anchor: "src/core/entities.js (PooledParticle.update)"
+    current_state: "Constant baseFriction (0.952) applied every frame."
+    proposed_state: "Drag scales with velocity squared (F = -kv^2), making fast bursts slow down realistically."
+    impact_hypothesis: "medium — adds weight and realism to particle movement."
+    effort_estimate: "S — ~10 lines in update loop."
+    evidence_class: "practitioner"
+    confidence: "high"
+    risk_flags: []
+
+- opportunity:
+    id: "OPP-002"
+    title: "Overcharge Buffer (Dirty Burst)"
+    source_stages: [stage_2_play_test]
+    file_anchor: "src/systems/inputSystem.js (handleRelease)"
+    current_state: "100% charge results in a hard 'fizzle' (no explosion)."
+    proposed_state: "Replace fizzle with a 'Dirty Burst': unstable patterns, heavy smoke, and random colors to reward timing even if imperfect."
+    impact_hypothesis: "high — fixes the primary retention/friction point identified in play-testing."
+    effort_estimate: "M — new shell type 'dirty' in registry.js + input logic."
+    evidence_class: "practitioner"
+    confidence: "high"
+    risk_flags: []
+
+- opportunity:
+    id: "OPP-003"
+    title: "Supernova Micro-pauses (Hit Stop)"
+    source_stages: [stage_3_benchmarking]
+    file_anchor: "src/core/engine.js (update)"
+    current_state: "Supernova triggers dilation and shake, but continuous motion."
+    proposed_state: "Add a 40ms 'sleep' (frame skip) the moment a Supernova triggers to emphasize impact."
+    impact_hypothesis: "medium — classic 'game feel' juice that enhances perceived power."
+    effort_estimate: "S — ~5 lines in engine.js."
+    evidence_class: "practitioner"
+    confidence: "high"
+    risk_flags: []
+
+- opportunity:
+    id: "OPP-004"
+    title: "Procedural Audio Tension"
+    source_stages: [stage_4_platform_scan, stage_3_benchmarking]
+    file_anchor: "[NEW] src/systems/audioSystem.js"
+    current_state: "Application is silent."
+    proposed_state: "Web Audio Oscillator ramps frequency during charge, creating rising tension."
+    impact_hypothesis: "high — sound is a massive emotional amplifier; lack of it is a major gap."
+    effort_estimate: "M — 100 lines for a basic audio manager."
+    evidence_class: "live_retrieval + practitioner"
+    confidence: "high"
+    risk_flags: []
+
+- opportunity:
+    id: "OPP-005: Trajectory Prediction Arc"
+    source_stages: [stage_3_benchmarking]
+    file_anchor: "src/render/overlayRenderer.js"
+    current_state: "Slingshot shows line, but not expected path."
+    proposed_state: "Draw a dotted parabolic arc during charge, showing where the shell will land (accounting for gravity)."
+    impact_hypothesis: "high — enhances skill-based gameplay and target acquisition."
+    effort_estimate: "M — ~80 lines for physics-math prediction."
+    evidence_class: "practitioner"
+    confidence: "medium"
+    risk_flags: []
+
+- opportunity:
+    id: "OPP-006: Offscreen Physics Worker"
+    source_stages: [stage_4_platform_scan]
+    file_anchor: "src/core/engine.js"
+    current_state: "All physics updates run on the main UI thread."
+    proposed_state: "Offload PooledParticle updates to a Web Worker via OffscreenCanvas."
+    impact_hypothesis: "low/medium — performance gain for high particle counts; may improve frame consistency."
+    effort_estimate: "L — significant refactoring of entity management."
+    evidence_class: "live_retrieval"
+    confidence: "high"
+    risk_flags: []
+
+- opportunity:
+    id: "OPP-007: Dynamic Bloom Filter"
+    source_stages: [stage_4_platform_scan]
+    file_anchor: "src/render/renderer.js"
+    current_state: "Glows are drawn as separate radial gradients."
+    proposed_state: "Apply ctx.filter = 'brightness(1.5) blur(4px)' to the entire burst layer briefly."
+    impact_hypothesis: "medium — adds 'premium' visual polish without the cost of complex shaders."
+    effort_estimate: "S — ~15 lines in renderer.js."
+    evidence_class: "live_retrieval"
+    confidence: "high"
+    risk_flags: []
+
+- opportunity:
+    id: "OPP-008: Tilt-to-Aim Physics"
+    source_stages: [stage_4_platform_scan]
+    file_anchor: "src/systems/inputSystem.js"
+    current_state: "Static horizontal launch based on start position."
+    proposed_state: "Use DeviceOrientation to add horizontal drift to active shells based on phone tilt."
+    impact_hypothesis: "medium — novel mobile-only engagement layer; adds physical connection."
+    effort_estimate: "M — ~50 lines for sensor integration."
+    evidence_class: "live_retrieval"
+    confidence: "medium"
+    risk_flags: []
