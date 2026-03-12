@@ -32,6 +32,7 @@ export function createEngine({ config, palettes, state }) {
     spawnAscentSpark,
     queueLaunch,
     flushLaunchQueue,
+    triggerSupernova,
     createExplosion: null,
     dispatchDeathBehavior: null,
     launchPattern: null,
@@ -123,6 +124,15 @@ export function createEngine({ config, palettes, state }) {
   function queueLaunch(delayMs, tx, ty, type = null, palette = null, startX = null, charge = 0, prestige = false) {
     state.scheduledLaunches.push({ at: performance.now() + delayMs, tx, ty, type, palette, startX, charge, prestige });
   }
+
+  function triggerSupernova(color) {
+    state.timeDilation = 0.1;
+    state.timeDilationTimer = 300;
+    state.screenShakeTimer = 400;
+    state.flashTimer = 100;
+    state.flashColor = color || '255,255,255';
+  }
+
   function flushLaunchQueue(now) {
     if (state.scheduledLaunches.length === 0) return;
     const pending = [];

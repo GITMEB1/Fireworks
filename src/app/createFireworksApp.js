@@ -60,8 +60,53 @@ export function createFireworksApp({ canvas, hintEl, statusEl, configOverrides =
     if (state.hidden) return;
 
     qualitySystem.updateAdaptiveQuality(now, dt);
-    engine.update(timeScale, now);
+
+    // Supernova Time Dilation
+    if (state.timeDilationTimer > 0) {
+      state.timeDilationTimer -= dt;
+      if (state.timeDilationTimer <= 0) {
+        state.timeDilation = 1.0;
+        state.timeDilationTimer = 0;
+      }
+    }
+    
+    // Supernova Screen Shake
+    let shakeX = 0, shakeY = 0;
+    if (state.screenShakeTimer > 0) {
+      state.screenShakeTimer -= dt;
+      if (state.screenShakeTimer > 0) {
+        const intensity = (state.screenShakeTimer / 400); // 400ms max
+        shakeX = (Math.random() - 0.5) * 40 * intensity;
+        shakeY = (Math.random() - 0.5) * 40 * intensity;
+      } else {
+        state.screenShakeTimer = 0;
+      }
+    }
+
+    if (shakeX !== 0 || shakeY !== 0) {
+      ctx.save();
+      ctx.translate(shakeX, shakeY);
+    }
+
+    engine.update(timeScale * state.timeDilation, now);
     renderer.render(now, engine);
+
+    // Supernova Color Flash
+    if (state.flashTimer > 0) {
+      state.flashTimer -= dt;
+      if (state.flashTimer > 0) {
+        const flashIntensity = state.flashTimer / 100; // 100ms max
+        ctx.fillStyle = `rgba(${state.flashColor}, ${flashIntensity * 0.8})`;
+        ctx.fillRect(-state.width, -state.height, state.width * 3, state.height * 3);
+      } else {
+        state.flashTimer = 0;
+      }
+    }
+
+    if (shakeX !== 0 || shakeY !== 0) {
+      ctx.restore();
+    }
+
     maybeAutoLaunch(timeScale);
   }
 

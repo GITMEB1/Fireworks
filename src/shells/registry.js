@@ -134,9 +134,31 @@ export function createShellRegistry(engine) {
     }
   }
 
-  const shells = { peony: shellPeony, willow: shellWillow, ring: shellRing, crossette: shellCrossette, crackle: shellCrackle, palm: shellPalm, spiral: shellSpiral, brocade: shellBrocade, ghost: shellGhost, doubleBreak: shellDoubleBreak };
+  function shellFizzle({ x, y, palette }) {
+    engine.spawnSmokeBurst(x, y, '150,150,150', 2);
+    engine.spawnFlash(x, y, palette[0], 20, 0.4);
+    for (let i = 0; i < 8; i++) {
+        engine.resetPCfg();
+        engine.pCfg.angle = rand(0, Math.PI * 2);
+        engine.pCfg.velocity = rand(0.5, 1.5);
+        engine.pCfg.drag = 0.95; engine.pCfg.decay = rand(0.02, 0.04);
+        engine.pCfg.size = 1.0; engine.pCfg.trailLength = 2;
+        engine.spawnParticle(x, y, pick(palette), engine.pCfg);
+    }
+  }
+
+  const shells = { peony: shellPeony, willow: shellWillow, ring: shellRing, crossette: shellCrossette, crackle: shellCrackle, palm: shellPalm, spiral: shellSpiral, brocade: shellBrocade, ghost: shellGhost, doubleBreak: shellDoubleBreak, fizzle: shellFizzle };
 
   function createExplosion(x, y, type, palette, charge = 0, prestige = false) {
+    if (type === 'fizzle') {
+        shells.fizzle({ x, y, palette });
+        return;
+    }
+    
+    if (charge >= 1.0 && prestige && engine.triggerSupernova) {
+        engine.triggerSupernova(palette[0]);
+    }
+
     const flashColor = palette[0];
     const countMult = 1 + charge * (engine.config.CHARGE.maxMultiplier - 1);
     const velMult = 1 + charge * (engine.config.CHARGE.maxVelMultiplier - 1) + (prestige ? 0.12 : 0);

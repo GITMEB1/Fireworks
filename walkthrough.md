@@ -1,64 +1,43 @@
-# Fireworks Simulator — Combined Walkthrough
+# Walkthrough: Perfect Charge Supernova Update
 
-## Run 1: Deep Debugging (11 issues found, 8 fixed)
+This update enhances the Fireworks simulator with a skill-based "Perfect Charge" mechanic and high-impact visual feedback (juiced effects).
 
-Deep debugging run on a 1287-line single-file HTML fireworks simulator. Found **11 issues** (1 critical, 3 high, 3 medium, 4 low). Applied **8 targeted fixes** across 25 edit sites.
+## New Features
 
-Most impactful: 6 of 10 shell types never randomized particle launch angles (I-11, CRITICAL).
+### 1. The "Sweet Spot" Mechanic
+Holding a click now transitions through three distinct charge states:
+- **Normal (0-94%):** Standard fireworks.
+- **Perfect Charge (95-99%):** The charge indicator turns **White-Hot**. Releasing here triggers a **Supernova**.
+- **Overcharge (100%+):** Holding too long kills the charge. The indicator turns dull grey and shrinks. Releasing here results in a **Fizzle**.
 
-| ID | Title | Severity | Status |
-|---|---|---|---|
-| I-01 | Right-click launches firework | HIGH | ✅ Fixed |
-| I-02 | Context-menu on entire document | MEDIUM | ✅ Fixed |
-| I-03 | Quality double-multiplied on counts | HIGH | ✅ Fixed |
-| I-04 | Reduced-motion allows full autoplay | MEDIUM | ✅ Fixed |
-| I-05 | Trail buffer out-of-bounds | HIGH | ✅ Fixed |
-| I-06 | `pCfg` reuse in `shellSpiral` | LOW | Noted |
-| I-07 | Autoplay stops after interaction | LOW | By design |
-| I-08 | `pointercancel` launches firework | MEDIUM | ✅ Fixed |
-| I-09 | Canvas missing a11y attributes | LOW | ✅ Fixed |
-| I-10 | Visibility change doesn't clear queue | LOW | Noted |
-| I-11 | 6 shell types missing angles | **CRITICAL** | ✅ Fixed |
+### 2. Supernova Visuals
+When a Supernova is triggered, several "juice" effects activate simultaneously:
+- **Time Dilation:** Global time slows to 0.1x for a brief moment, creating a "hit pause" feel at the apex.
+- **Screen Shake:** The entire canvas vibrates violently, giving the explosion physical weight.
+- **Color Flash:** A full-screen additive flash of the firework's primary color burns the effect into the background.
 
----
+### 3. The Fizzle Penalty
+Overcharged shots launch a projectile that fails to explode properly, emitting only grey smoke and weak sparks, creating a clear risk/reward loop.
 
-## Run 2: Launch Velocity & Hold-to-Charge (this run)
+## Implementation Details
 
-### Baseline Reconciliation
-All 8 debugging fixes confirmed present. Found 1 remaining bug: `touchcancel` still launched instead of abandoning.
+### Core Engine (`src/core/engine.js`)
+- Added `triggerSupernova(color)` to the engine API.
+- This function sets global timers in `state` for dilation, shake, and flash.
 
-### Baseline Fix
-- **touchcancel → abandon**: New `handleTouchCancel()` deletes pointer without launching
+### Input System (`src/systems/inputSystem.js`)
+- Revised `endInteraction` to calculate charge states.
+- Replaced the simple charge clamp with logic to branch between `fizzle`, `perfect`, and `normal` shell spawns.
 
-### Variable Rocket Velocity
-- `timeToTarget` now derives from `charge`, `heavyPenalty`, and `prestigeSpeedFactor`
-- Up to 42% faster ascent at max charge, +10% for prestige
-- Heavy shells ~6% slower (realistic weight feel)
+### UI Rendering (`src/render/overlayRenderer.js`)
+- Updated `renderChargeVisuals` to provide visual feedback for the new states.
+- The "White-Hot" effect increases orbit counts and spark frequency to signal power.
 
-### Hold-to-Charge Improvements
-1. **Power curve**: `Math.pow(raw, 0.65)` — early hold useful, mid noticeable, max premium
-2. **Ascent trail**: thicker lines (+2.4×charge), more sparks, longer trails, sparkle at mid-charge
-3. **Explosion payoff**: larger flash, secondary warm glow, lower shockwave threshold (0.25), prestige double shockwave + core burst
-4. **Prestige crown**: more particles, faster, longer trails, inner bright glow
-5. **Charge visualization**: pulsing core, faster spinning rings, more orbiting dots, prestige power ring
+### Main Loop (`src/app/createFireworksApp.js`)
+- Injected time dilation and screen shake logic into the `loop` function.
+- Time dilation affects the `engine.update` timestep, while screen shake applies a randomized translation to the `ctx` before rendering.
 
-### Browser Validation (10/10 tests PASS)
-- Quick tap: ✅ Normal speed, standard explosion
-- Short hold: ✅ Slightly faster, charge ring visible
-- Medium hold: ✅ Noticeably faster, thicker trail
-- Long hold: ✅ Fastest ascent, richest explosion, crown halo
-- Speed comparison: ✅ Clearly visible difference
-- Right-click: ✅ Blocked
-- Autoplay: ✅ Working
-- Console: ✅ Clean
-
-### Residual Risks
-1. `pCfg` shared mutable state (low risk, currently safe)
-2. `touchcancel` untestable on desktop
-3. Particle budget peaks at max charge + prestige + doubleBreak (mitigated by pool limits)
-
-### Next Best Improvements
-1. Keyboard support (spacebar/escape)
-2. Idle resume autoplay
-3. Ring buffer class for trail/history
-4. Reduced-motion for manual interactions
+## Verification
+- **Manual Test:** Hold click until the indicator turns white; release for Supernova.
+- **Manual Test:** Hold click until the indicator turns grey; release for Fizzle.
+- **Manual Test:** Verify that normal clicking still produces standard fireworks.

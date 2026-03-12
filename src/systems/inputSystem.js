@@ -23,9 +23,27 @@ export function createInputSystem({ canvas, hintEl, statusEl, palettes, state, c
 
     const duration = performance.now() - p.startTime;
     let charge = 0;
-    if (duration >= config.CHARGE.minDuration) charge = Math.min((duration - config.CHARGE.minDuration) / (config.CHARGE.maxDuration - config.CHARGE.minDuration), 1);
+    let chargeState = 'normal';
+    
+    if (duration >= config.CHARGE.minDuration) {
+      charge = (duration - config.CHARGE.minDuration) / (config.CHARGE.maxDuration - config.CHARGE.minDuration);
+      if (charge >= 1.0) {
+        chargeState = 'overcharge';
+        charge = 1;
+      } else if (charge >= 0.95 && charge < 1.0) {
+        chargeState = 'perfect';
+      } else {
+        chargeState = 'normal';
+      }
+    }
 
-    engine.spawnShellTo(p.x, Math.max(state.height * 0.1, p.y), null, p.palette, p.x + rand(-30, 30), charge, charge >= config.CHARGE.prestigeThreshold);
+    if (chargeState === 'overcharge') {
+      engine.spawnShellTo(p.x, Math.max(state.height * 0.1, p.y), 'fizzle', p.palette, p.x + rand(-30, 30), 0, false);
+    } else if (chargeState === 'perfect') {
+      engine.spawnShellTo(p.x, Math.max(state.height * 0.1, p.y), null, p.palette, p.x + rand(-30, 30), 1.0, true);
+    } else {
+      engine.spawnShellTo(p.x, Math.max(state.height * 0.1, p.y), null, p.palette, p.x + rand(-30, 30), charge, charge >= config.CHARGE.prestigeThreshold);
+    }
   }
 
   function handlePointerDown(e) {

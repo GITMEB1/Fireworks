@@ -13,6 +13,12 @@ export function createAppState() {
     reducedMotion: window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches,
     suppressMouseUntil: 0,
     activePointers: new Map(),
-    scheduledLaunches: []
+    scheduledLaunches: [],
+    // Supernova states
+    timeDilation: 1.0, 
+    timeDilationTimer: 0,
+    screenShakeTimer: 0,
+    flashTimer: 0,
+    flashColor: '255,255,255'
   };
 }
