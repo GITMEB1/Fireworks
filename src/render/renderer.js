@@ -15,6 +15,7 @@ export function createRenderer({ ctx, backgroundRenderer, activePointers, config
     for (let i = 0; i < engine.activeCounts.shockwaves; i++) engine.pools.shockwaves[i].draw(ctx);
 
     ctx.globalCompositeOperation = 'source-over';
+    for (let i = 0; i < engine.activeCounts.targets; i++) engine.pools.targets[i].draw(ctx);
     for (let i = 0; i < engine.activeCounts.embers; i++) engine.pools.embers[i].draw(ctx);
 
     // --- Dynamic Bloom Pass ---

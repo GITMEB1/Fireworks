@@ -8,7 +8,8 @@ export const CONFIG = {
     maxGlows: 30,
     maxEmbers: 200,
     maxShockwaves: 15,
-    maxFireworks: 25
+    maxFireworks: 25,
+    maxTargets: 24
   },
 
   autoLaunchMin: 60,
