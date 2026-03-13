@@ -11,6 +11,7 @@
 # 2. Create a secret in your repository named AZURE_WEBAPP_PUBLISH_PROFILE, paste the publish profile contents as the value of the secret.
 #    For instructions on obtaining the publish profile see: https://docs.microsoft.com/azure/app-service/deploy-github-actions#configure-the-github-secret
 #
+# IMPORTANT: Since Cloud Run deployment failed due to environment restrictions, this Azure workflow is your primary deployment path.
 # 3. Change the value for the AZURE_WEBAPP_NAME. Optionally, change the AZURE_WEBAPP_PACKAGE_PATH and NODE_VERSION environment variables below.
 #
 # For more information on GitHub Actions for Azure: https://github.com/Azure/Actions
@@ -23,9 +24,10 @@ on:
   workflow_dispatch:
 
 env:
-  AZURE_WEBAPP_NAME: your-app-name    # set this to your application's name
-  AZURE_WEBAPP_PACKAGE_PATH: '.'      # set this to the path to your web app project, defaults to the repository root
-  NODE_VERSION: '20.x'                # set this to the node version to use
+env:
+  AZURE_WEBAPP_NAME: fireworks-delta-simulator
+  AZURE_WEBAPP_PACKAGE_PATH: '.'      
+  NODE_VERSION: '20.x'                
 
 permissions:
   contents: read

@@ -1,0 +1,13 @@
+{
+  "name": "fireworks-simulator",
+  "version": "1.0.0",
+  "description": "Premium Fireworks - True Delta Edition",
+  "main": "index.html",
+  "scripts": {
+    "start": "http-server . -p 8080",
+    "dev": "http-server . -p 3000"
+  },
+  "dependencies": {
+    "http-server": "^14.1.1"
+  }
+}
