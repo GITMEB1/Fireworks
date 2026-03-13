@@ -232,15 +232,32 @@ export function createShellRegistry(engine) {
     }
   }
 
+
+  function applyExplosionImpactToTargets(x, y, explosionRadius, charge = 0) {
+    const impactEventId = ++engine.explosionEventId;
+    const impactScale = 1 + charge * 1.5;
+    for (let i = 0; i < engine.activeCounts.targets; i++) {
+      const target = engine.pools.targets[i];
+      const dx = target.x - x;
+      const dy = target.y - y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      const normalized = Math.max(0, Math.min(1, 1 - (distance / explosionRadius)));
+      const intensity = normalized * impactScale;
+      if (intensity > 0) target.onImpact(intensity, x, y, impactEventId);
+    }
+  }
+
   const shells = { peony: shellPeony, willow: shellWillow, ring: shellRing, crossette: shellCrossette, crackle: shellCrackle, palm: shellPalm, spiral: shellSpiral, brocade: shellBrocade, ghost: shellGhost, doubleBreak: shellDoubleBreak, fizzle: shellFizzle, heart: shellHeart, star: shellStar, smiley: shellSmiley, dirty: shellDirty };
 
   function createExplosion(x, y, type, palette, charge = 0, prestige = false) {
     if (type === 'fizzle') {
+        applyExplosionImpactToTargets(x, y, 72, charge);
         shells.fizzle({ x, y, palette });
         return;
     }
 
     if (type === 'dirty') {
+        applyExplosionImpactToTargets(x, y, 110, charge);
         engine.spawnFlash(x, y, '255,255,255', 40, 0.3);
         shells.dirty({ x, y, palettes: engine.palettes, countMult: 1.2 });
         return;
@@ -265,6 +282,9 @@ export function createShellRegistry(engine) {
         countMult *= 1.5;
         velMult *= 1.5;
     }
+
+    const explosionRadius = 110 * velMult;
+    applyExplosionImpactToTargets(x, y, explosionRadius, charge);
 
     engine.spawnFlash(x, y, flashColor, rand(58, 92) * velMult * 1.2, 0.12 + charge * 0.1 + (prestige ? 0.05 : 0));
     engine.spawnGlow(x, y, flashColor, rand(65, 110) * velMult, rand(0.08, 0.18) * (1 + charge + (prestige ? 0.2 : 0)), rand(0.012, 0.02));

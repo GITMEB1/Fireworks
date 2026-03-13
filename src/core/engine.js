@@ -1,12 +1,12 @@
-import { PooledGlow, PooledSmoke, PooledEmber, PooledShockwave, PooledParticle, PooledFirework } from './entities.js';
+import { PooledGlow, PooledSmoke, PooledEmber, PooledShockwave, PooledParticle, PooledFirework, PooledTarget } from './entities.js';
 import { clamp, pick, rand, DEATH_CROSSETTE, DEATH_CRACKLE, DEATH_DOUBLE_BREAK, DEATH_GHOST, DEATH_NONE } from './utils.js';
 import { createShellRegistry } from '../shells/registry.js';
 import { createLaunchPatternRunner } from '../patterns/launchPatterns.js';
 import { createDeathBehaviorDispatcher } from '../effects/deathBehaviors.js';
 
 export function createEngine({ config, palettes, state, audio }) {
-  const pools = { fireworks: [], particles: [], smokes: [], glows: [], embers: [], shockwaves: [] };
-  const activeCounts = { fireworks: 0, particles: 0, smokes: 0, glows: 0, embers: 0, shockwaves: 0 };
+  const pools = { fireworks: [], particles: [], smokes: [], glows: [], embers: [], shockwaves: [], targets: [] };
+  const activeCounts = { fireworks: 0, particles: 0, smokes: 0, glows: 0, embers: 0, shockwaves: 0, targets: 0 };
 
   const engine = {
     config,
@@ -31,6 +31,7 @@ export function createEngine({ config, palettes, state, audio }) {
     spawnFlash,
     spawnAscentSpark,
     spawnContinuousSpark,
+    spawnTarget,
     queueLaunch,
     flushLaunchQueue,
     triggerSupernova,
@@ -40,7 +41,8 @@ export function createEngine({ config, palettes, state, audio }) {
     dispatchDeathBehavior: null,
     launchPattern: null,
     update,
-    audio
+    audio,
+    explosionEventId: 0
   };
 
   const shellRegistry = createShellRegistry(engine);
@@ -71,6 +73,7 @@ export function createEngine({ config, palettes, state, audio }) {
     for (let i = pools.glows.length; i < LIMITS.maxGlows; i++) pools.glows.push(new PooledGlow());
     for (let i = pools.embers.length; i < LIMITS.maxEmbers; i++) pools.embers.push(new PooledEmber());
     for (let i = pools.shockwaves.length; i < LIMITS.maxShockwaves; i++) pools.shockwaves.push(new PooledShockwave());
+    for (let i = pools.targets.length; i < LIMITS.maxTargets; i++) pools.targets.push(new PooledTarget(engine));
   }
 
   function spawnParticle(x, y, color, cfg) {
@@ -146,6 +149,14 @@ export function createEngine({ config, palettes, state, audio }) {
     pCfg.inheritVX = vx;
     pCfg.inheritVY = vy;
     spawnParticle(x, y, color, pCfg);
+  }
+
+
+  function spawnTarget(x, y, radius = rand(14, 26), mass = rand(2.2, 5.6), color = pick(palettes)) {
+    const limit = Math.floor(config.LIMITS.maxTargets * clamp(state.qualityScale + 0.25, 0.5, 1.2));
+    if (activeCounts.targets >= limit) return;
+    const targetColor = Array.isArray(color) ? pick(color) : color;
+    pools.targets[activeCounts.targets++].init(x, y, radius, mass, targetColor);
   }
 
   function queueLaunch(delayMs, tx, ty, type = null, palette = null, startX = null, charge = 0, prestige = false) {
@@ -229,6 +240,7 @@ export function createEngine({ config, palettes, state, audio }) {
     compactAndUpdate('glows', timeScale);
     compactAndUpdate('embers', timeScale);
     compactAndUpdate('shockwaves', timeScale);
+    compactAndUpdate('targets', timeScale);
   }
 
   return engine;

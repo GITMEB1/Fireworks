@@ -211,3 +211,113 @@ export class PooledFirework {
     ctx.fill();
   }
 }
+
+
+export class PooledTarget {
+  constructor(engine) {
+    this.engine = engine;
+    this.lastImpactEventId = -1;
+  }
+  init(x, y, radius, mass, color) {
+    this.x = x; this.y = y;
+    this.vx = rand(-1.2, 1.2); this.vy = rand(-0.6, 0.6);
+    this.mass = Math.max(0.1, mass);
+    this.health = 1;
+    this.radius = radius;
+    this.color = color;
+    this.rotation = rand(0, Math.PI * 2);
+    this.rotationSpeed = rand(-0.035, 0.035);
+    this.lastImpactEventId = -1;
+  }
+  update(timeScale) {
+    const { state, config } = this.engine;
+    this.vy += config.gravity * timeScale;
+    this.x += this.vx * timeScale;
+    this.y += this.vy * timeScale;
+    this.rotation += this.rotationSpeed * timeScale;
+
+    const left = this.radius;
+    const right = state.width - this.radius;
+    const top = this.radius;
+    const bottom = state.height - this.radius;
+
+    if (this.x < left) {
+      this.x = left;
+      this.vx = Math.abs(this.vx) * 0.82;
+    } else if (this.x > right) {
+      this.x = right;
+      this.vx = -Math.abs(this.vx) * 0.82;
+    }
+
+    if (this.y < top) {
+      this.y = top;
+      this.vy = Math.abs(this.vy) * 0.8;
+    } else if (this.y > bottom) {
+      this.y = bottom;
+      this.vy = -Math.abs(this.vy) * 0.74;
+      this.vx *= 0.96;
+      if (Math.abs(this.vy) < 0.1) this.vy = 0;
+    }
+
+    return this.health <= 0;
+  }
+  draw(ctx) {
+    ctx.save();
+    ctx.translate(this.x, this.y);
+    ctx.rotate(this.rotation);
+
+    ctx.fillStyle = `rgb(${this.color})`;
+    ctx.beginPath();
+    ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.lineWidth = Math.max(1.5, this.radius * 0.24);
+    ctx.strokeStyle = 'rgba(255,255,255,0.75)';
+    ctx.beginPath();
+    ctx.arc(0, 0, this.radius * 0.92, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    ctx.beginPath();
+    ctx.arc(-this.radius * 0.3, -this.radius * 0.25, this.radius * 0.33, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+  }
+  onImpact(intensity, impactX, impactY, impactEventId = null) {
+    if (impactEventId != null && this.lastImpactEventId === impactEventId) return;
+    if (impactEventId != null) this.lastImpactEventId = impactEventId;
+
+    this.health -= intensity;
+    const impulse = intensity / this.mass;
+    this.vx += (this.x - impactX) * impulse;
+    this.vy += (this.y - impactY) * impulse;
+    this.vy -= impulse * 2;
+    this.rotationSpeed += rand(-0.02, 0.02) * (1 + intensity);
+
+    if (this.health <= 0) this.shatter();
+  }
+  shatter() {
+    const count = Math.floor(rand(15, 26));
+    const speedFactor = rand(0.3, 0.6);
+
+    for (let i = 0; i < count; i++) {
+      this.engine.resetPCfg();
+      const pCfg = this.engine.pCfg;
+      pCfg.angle = rand(0, Math.PI * 2);
+      pCfg.velocity = rand(1.2, 4.2);
+      pCfg.drag = 0.94;
+      pCfg.gravMult = 0.95;
+      pCfg.decay = rand(0.02, 0.04);
+      pCfg.size = rand(1.0, 2.4);
+      pCfg.trailLength = 2;
+      pCfg.alpha = 1;
+      pCfg.inheritVX = this.vx * speedFactor + rand(-1.6, 1.6);
+      pCfg.inheritVY = this.vy * speedFactor + rand(-1.6, 1.2);
+      this.engine.spawnParticle(this.x, this.y, this.color, pCfg);
+    }
+
+    this.engine.spawnSmokeBurst(this.x, this.y, this.color, 3);
+    this.health = 0;
+  }
+}
