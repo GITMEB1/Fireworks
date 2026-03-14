@@ -60,6 +60,33 @@ export const CONFIG = {
     intensitySmoothing: 0.2
   },
 
+  OBJECTIVE: {
+    enabled: true,
+    maxConcurrentTargets: 5,
+    spawnCooldownMs: 1400,
+    spawnJitterMs: 480,
+    targetLifetimeMs: 7600,
+    maxPressure: 100,
+    warningPressure: 72,
+    failPressure: 100,
+    pressurePerExpire: 18,
+    pressurePerDirtyShot: 8,
+    pressureDecayPerSecond: 1.8,
+    pressureRecoveryOnClear: 9,
+    pressureRecoveryOnPerfect: 12,
+    scorePerHit: 20,
+    scorePerClear: 120,
+    scorePerfectBonus: 60,
+    comboWindowMs: 2400,
+    comboMax: 5,
+    comboBonusPerStep: 0.15,
+    phaseDurationMs: 26000,
+    phaseClearTargetBase: 6,
+    phaseClearTargetStep: 2,
+    phaseTargetSpeedMultStep: 0.08,
+    qualityTargetScaleMin: 0.55
+  },
+
   PHYSICS: {
     shellAtmosphericDrag: {
       enabled: true,
@@ -172,6 +199,7 @@ export function createConfig(overrides = {}) {
     CHARGE: { ...CONFIG.CHARGE, ...(overrides.CHARGE || {}) },
     QUALITY: { ...CONFIG.QUALITY, ...(overrides.QUALITY || {}) },
     BLOOM: { ...CONFIG.BLOOM, ...(overrides.BLOOM || {}) },
+    OBJECTIVE: { ...CONFIG.OBJECTIVE, ...(overrides.OBJECTIVE || {}) },
     PHYSICS: {
       ...CONFIG.PHYSICS,
       ...(overrides.PHYSICS || {}),

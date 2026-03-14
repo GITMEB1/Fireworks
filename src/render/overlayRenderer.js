@@ -118,6 +118,55 @@ export function renderChargeVisuals({ ctx, now, activePointers, config, engine }
   
   // Render Combo / Fever UI Overlay
   if (engine && engine.state) {
+      const run = engine.state.objectiveRun;
+      if (run && config.OBJECTIVE?.enabled) {
+          const pressureNorm = Math.max(0, Math.min(1, run.pressure / config.OBJECTIVE.maxPressure));
+          const pressureWarn = run.pressure >= config.OBJECTIVE.warningPressure;
+          const pad = 16;
+          const panelW = Math.min(engine.state.width * 0.5, 320);
+          const panelH = 108;
+
+          ctx.fillStyle = 'rgba(10,14,26,0.62)';
+          ctx.fillRect(pad, pad, panelW, panelH);
+
+          ctx.fillStyle = 'rgba(255,255,255,0.92)';
+          ctx.font = '600 16px sans-serif';
+          ctx.textAlign = 'left';
+          ctx.fillText(`Score ${Math.floor(run.score)}`, pad + 12, pad + 24);
+          ctx.fillText(`Phase ${run.phase}`, pad + 12, pad + 46);
+          ctx.fillStyle = 'rgba(215,226,255,0.9)';
+          ctx.font = '500 13px sans-serif';
+          ctx.fillText(run.objectiveText, pad + 12, pad + 66);
+
+          const timerSec = Math.ceil(run.phaseTimerMs / 1000);
+          ctx.fillStyle = 'rgba(255,255,255,0.82)';
+          ctx.fillText(`Time ${timerSec}s`, pad + panelW - 76, pad + 24);
+
+          const barX = pad + 12;
+          const barY = pad + 80;
+          const barW = panelW - 24;
+          const barH = 12;
+          ctx.fillStyle = 'rgba(255,255,255,0.14)';
+          ctx.fillRect(barX, barY, barW, barH);
+          ctx.fillStyle = pressureWarn ? `rgba(255,110,110,${0.72 + Math.sin(now * 0.01) * 0.14})` : 'rgba(120,235,175,0.86)';
+          ctx.fillRect(barX, barY, barW * pressureNorm, barH);
+          ctx.fillStyle = 'rgba(255,255,255,0.9)';
+          ctx.font = '600 11px sans-serif';
+          ctx.fillText(`Pressure ${Math.round(run.pressure)}/${config.OBJECTIVE.maxPressure}`, barX, barY + 26);
+
+          if (run.status === 'failed') {
+            ctx.fillStyle = 'rgba(12,8,18,0.76)';
+            ctx.fillRect(engine.state.width * 0.2, engine.state.height * 0.38, engine.state.width * 0.6, 96);
+            ctx.fillStyle = 'rgba(255,130,130,0.96)';
+            ctx.font = '700 30px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('RUN FAILED', engine.state.width / 2, engine.state.height * 0.38 + 40);
+            ctx.fillStyle = 'rgba(255,255,255,0.88)';
+            ctx.font = '500 16px sans-serif';
+            ctx.fillText('Press R or tap/click to restart', engine.state.width / 2, engine.state.height * 0.38 + 70);
+          }
+      }
+
       if (engine.state.combo > 0) {
           ctx.fillStyle = rgba('255,255,255', 0.8 + Math.sin(now * 0.01) * 0.2);
           ctx.font = 'bold 24px sans-serif';

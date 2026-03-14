@@ -291,10 +291,15 @@ export class PooledTarget {
     this.color = color;
     this.rotation = rand(0, Math.PI * 2);
     this.rotationSpeed = rand(-0.035, 0.035);
+    this.maxHealth = this.health;
+    this.ageMs = 0;
+    this.lifetimeMs = this.engine.config.OBJECTIVE?.targetLifetimeMs || 7600;
+    this.removalReason = null;
     this.lastImpactEventId = -1;
   }
   update(timeScale) {
     const { state, config } = this.engine;
+    this.ageMs += timeScale * 16.666;
     this.vy += config.gravity * timeScale;
     this.x += this.vx * timeScale;
     this.y += this.vy * timeScale;
@@ -323,7 +328,18 @@ export class PooledTarget {
       if (Math.abs(this.vy) < 0.1) this.vy = 0;
     }
 
-    return this.health <= 0;
+    if (this.ageMs >= this.lifetimeMs && this.health > 0) {
+      this.removalReason = 'expired';
+      this.health = 0;
+      return true;
+    }
+
+    if (this.health <= 0) {
+      this.removalReason = this.removalReason || 'cleared';
+      return true;
+    }
+
+    return false;
   }
   draw(ctx) {
     ctx.save();
@@ -359,7 +375,11 @@ export class PooledTarget {
     this.vy -= impulse * 2;
     this.rotationSpeed += rand(-0.02, 0.02) * (1 + intensity);
 
-    if (this.health <= 0) this.shatter();
+    this.engine.onTargetDamaged?.(this, intensity);
+    if (this.health <= 0) {
+      this.removalReason = 'cleared';
+      this.shatter();
+    }
   }
   shatter() {
     const count = Math.floor(rand(15, 26));

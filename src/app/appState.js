@@ -20,6 +20,7 @@ export function createAppState() {
     screenShakeTimer: 0,
     flashTimer: 0,
     flashColor: '255,255,255',
-    overchargeCueTimer: 0
+    overchargeCueTimer: 0,
+    objectiveRun: null
   };
 }

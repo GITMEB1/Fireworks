@@ -33,6 +33,7 @@ export function createFireworksApp({ canvas, hintEl, statusEl, configOverrides =
   }
 
   function maybeAutoLaunch(timeScale) {
+    if (config.OBJECTIVE?.enabled) return;
     if (state.userInteracted) return;
     state.autoLaunchTimer -= 1 * timeScale;
     if (state.autoLaunchTimer > 0) return;
