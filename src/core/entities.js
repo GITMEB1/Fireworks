@@ -171,6 +171,8 @@ export class PooledFirework {
     this.launchGlowColor = isDirty ? '120,112,96' : this.palette[0];
     this.histIndex = 0; this.histCount = 0;
     this.sputterCooldown = 0;
+    this.launchDistanceY = Math.max(1, startY - targetY);
+    this.altitudeNorm = 0;
   }
   update(timeScale) {
     this.histIndex = (this.histIndex - 2) & 62;
@@ -183,6 +185,20 @@ export class PooledFirework {
     if (isDirty) {
       this.vx += rand(-0.015, 0.015) * (1 + this.overchargeRatio * 1.2) * timeScale;
     }
+
+    const dragCfg = this.engine.config.PHYSICS?.shellAtmosphericDrag;
+    if (dragCfg?.enabled) {
+      const altitudeNorm = Math.min(1, Math.max(0, (this.targetY - this.y) / this.launchDistanceY));
+      this.altitudeNorm = altitudeNorm;
+      const apexFactor = Math.max(0, -this.vy) / 2.6;
+      let dragStrength = dragCfg.base + (1 - altitudeNorm) * dragCfg.lowAltitudeBoost + apexFactor * dragCfg.apexBoost;
+      if (this.isHeavy) dragStrength *= dragCfg.heavyMultiplier;
+      if (isDirty) dragStrength *= dragCfg.dirtyMultiplier;
+      const damping = Math.max(dragCfg.minDamping, 1 - dragStrength * timeScale);
+      this.vx *= damping;
+      this.vy *= damping;
+    }
+
     this.x += this.vx * timeScale;
     this.y += this.vy * timeScale;
     this.timeToTarget -= 1 * timeScale;

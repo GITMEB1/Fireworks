@@ -47,6 +47,30 @@ export const CONFIG = {
     reduceMotionScale: 0.72
   },
 
+  BLOOM: {
+    minQuality: 0.66,
+    minScale: 0.14,
+    maxScale: 0.34,
+    baseAlpha: 0.14,
+    impactAlphaBoost: 0.42,
+    overloadFade: 0.22,
+    lowCadence: 2,
+    highCadence: 1,
+    impactPulseMs: 180
+  },
+
+  PHYSICS: {
+    shellAtmosphericDrag: {
+      enabled: true,
+      base: 0.0032,
+      lowAltitudeBoost: 0.003,
+      apexBoost: 0.0055,
+      heavyMultiplier: 0.72,
+      dirtyMultiplier: 1.2,
+      minDamping: 0.965
+    }
+  },
+
   shellWeights: {
     peony: 1.2, willow: 1.0, ring: 0.9, crossette: 0.8,
     crackle: 0.9, palm: 0.8, spiral: 0.7, brocade: 0.78,
@@ -72,6 +96,15 @@ export function createConfig(overrides = {}) {
     LIMITS: { ...CONFIG.LIMITS, ...(overrides.LIMITS || {}) },
     CHARGE: { ...CONFIG.CHARGE, ...(overrides.CHARGE || {}) },
     QUALITY: { ...CONFIG.QUALITY, ...(overrides.QUALITY || {}) },
+    BLOOM: { ...CONFIG.BLOOM, ...(overrides.BLOOM || {}) },
+    PHYSICS: {
+      ...CONFIG.PHYSICS,
+      ...(overrides.PHYSICS || {}),
+      shellAtmosphericDrag: {
+        ...CONFIG.PHYSICS.shellAtmosphericDrag,
+        ...((overrides.PHYSICS && overrides.PHYSICS.shellAtmosphericDrag) || {})
+      }
+    },
     shellWeights: { ...CONFIG.shellWeights, ...(overrides.shellWeights || {}) }
   };
 }
