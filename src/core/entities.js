@@ -1,4 +1,4 @@
-import { rand, rgba, weightedShellType } from './utils.js';
+import { clamp, rand, rgba, weightedShellType } from './utils.js';
 
 export class PooledGlow {
   init(x, y, color, radius, alpha, decay, rise = -0.02) {
@@ -190,9 +190,9 @@ export class PooledFirework {
     if (dragCfg?.enabled) {
       const altitudeNorm = Math.min(1, Math.max(0, (this.targetY - this.y) / this.launchDistanceY));
       this.altitudeNorm = altitudeNorm;
-      const apexWindowSpeed = Math.max(0.0001, dragCfg.apexWindowSpeed || 2.6);
-      const apexWindowMultiplier = dragCfg.apexWindowMultiplier ?? 1;
-      const apexFactor = (1 - Math.min(1, Math.abs(this.vy) / apexWindowSpeed)) * apexWindowMultiplier;
+      const apexWindowSpeed = Math.max(Number.EPSILON, dragCfg.apexWindowSpeed);
+      const normalizedApexVelocity = clamp(Math.abs(this.vy) / apexWindowSpeed, 0, 1);
+      const apexFactor = (1 - normalizedApexVelocity) * dragCfg.apexWindowMultiplier;
       let dragStrength = dragCfg.base + (1 - altitudeNorm) * dragCfg.lowAltitudeBoost + apexFactor * dragCfg.apexBoost;
       if (this.isHeavy) dragStrength *= dragCfg.heavyMultiplier;
       if (isDirty) dragStrength *= dragCfg.dirtyMultiplier;
