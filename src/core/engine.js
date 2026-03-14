@@ -36,6 +36,8 @@ export function createEngine({ config, palettes, state, audio }) {
     flushLaunchQueue,
     triggerSupernova,
     registerShot,
+    onTargetDamaged,
+    resetObjectiveRun,
     isFever,
     createExplosion: null,
     dispatchDeathBehavior: null,
@@ -54,6 +56,35 @@ export function createEngine({ config, palettes, state, audio }) {
   state.combo = state.combo || 0;
   state.feverTimer = state.feverTimer || 0;
   state.feverDuration = state.feverDuration || 10000;
+
+  function createObjectiveRunState() {
+    const objectiveCfg = config.OBJECTIVE;
+    return {
+      score: 0,
+      pressure: 18,
+      combo: 0,
+      comboTimerMs: 0,
+      phase: 1,
+      phaseTimerMs: objectiveCfg.phaseDurationMs,
+      phaseClears: 0,
+      phaseClearTarget: objectiveCfg.phaseClearTargetBase,
+      status: 'running',
+      objectiveText: 'Clear targets to stabilize pressure',
+      totalClears: 0,
+      totalExpiries: 0,
+      spawnCooldownMs: 800,
+      lastShotType: 'normal'
+    };
+  }
+
+  function resetObjectiveRun() {
+    state.objectiveRun = createObjectiveRunState();
+    state.scheduledLaunches = [];
+    state.activePointers.clear();
+    activeCounts.targets = 0;
+  }
+
+  if (!state.objectiveRun) resetObjectiveRun();
 
   function resetPCfg() {
     const pCfg = engine.pCfg;
@@ -160,6 +191,28 @@ export function createEngine({ config, palettes, state, audio }) {
     pools.targets[activeCounts.targets++].init(x, y, radius, mass, targetColor);
   }
 
+  function onTargetDamaged(target, intensity) {
+    const run = state.objectiveRun;
+    if (!run || run.status !== 'running') return;
+    run.score += Math.max(1, Math.round(config.OBJECTIVE.scorePerHit * intensity));
+    if (target.health <= 0) {
+      if (run.comboTimerMs > 0) {
+        run.combo = Math.min(config.OBJECTIVE.comboMax, run.combo + 1);
+      } else {
+        run.combo = 1;
+      }
+      run.comboTimerMs = config.OBJECTIVE.comboWindowMs;
+
+      const comboMult = 1 + (run.combo - 1) * config.OBJECTIVE.comboBonusPerStep;
+      const perfectBonus = run.lastShotType === 'supernova' ? config.OBJECTIVE.scorePerfectBonus : 0;
+      run.score += Math.round((config.OBJECTIVE.scorePerClear + perfectBonus) * comboMult);
+      run.phaseClears += 1;
+      run.totalClears += 1;
+      const recovery = run.lastShotType === 'supernova' ? config.OBJECTIVE.pressureRecoveryOnPerfect : config.OBJECTIVE.pressureRecoveryOnClear;
+      run.pressure = clamp(run.pressure - recovery, 0, config.OBJECTIVE.maxPressure);
+    }
+  }
+
   function queueLaunch(delayMs, tx, ty, type = null, palette = null, startX = null, charge = 0, prestige = false, outcomeMeta = null) {
     state.scheduledLaunches.push({ at: performance.now() + delayMs, tx, ty, type, palette, startX, charge, prestige, outcomeMeta });
   }
@@ -175,6 +228,13 @@ export function createEngine({ config, palettes, state, audio }) {
   }
 
   function registerShot(type) {
+    if (state.objectiveRun) {
+      state.objectiveRun.lastShotType = type;
+      if (type === 'dirty' && state.objectiveRun.status === 'running') {
+        state.objectiveRun.pressure = clamp(state.objectiveRun.pressure + config.OBJECTIVE.pressurePerDirtyShot, 0, config.OBJECTIVE.maxPressure);
+      }
+    }
+
     if (type === 'supernova') {
       state.combo++;
       if (state.combo >= 3) {
@@ -207,6 +267,15 @@ export function createEngine({ config, palettes, state, audio }) {
   function compactAndUpdate(poolName, timeScale) {
     for (let i = activeCounts[poolName] - 1; i >= 0; i--) {
       if (pools[poolName][i].update(timeScale)) {
+        if (poolName === 'targets') {
+          const reason = pools[poolName][i].removalReason;
+          if (reason === 'expired' && state.objectiveRun && state.objectiveRun.status === 'running') {
+            state.objectiveRun.totalExpiries += 1;
+            state.objectiveRun.combo = 0;
+            state.objectiveRun.comboTimerMs = 0;
+            state.objectiveRun.pressure = clamp(state.objectiveRun.pressure + config.OBJECTIVE.pressurePerExpire, 0, config.OBJECTIVE.maxPressure);
+          }
+        }
         const last = pools[poolName][activeCounts[poolName] - 1];
         pools[poolName][activeCounts[poolName] - 1] = pools[poolName][i];
         pools[poolName][i] = last;
@@ -215,7 +284,76 @@ export function createEngine({ config, palettes, state, audio }) {
     }
   }
 
+  function getTargetSpawnBudget() {
+    const qualityFloor = config.OBJECTIVE.qualityTargetScaleMin;
+    const qualityScale = clamp(state.qualityScale, qualityFloor, 1);
+    return Math.max(2, Math.floor(config.OBJECTIVE.maxConcurrentTargets * qualityScale));
+  }
+
+  function spawnObjectiveTarget() {
+    const run = state.objectiveRun;
+    if (!run || run.status !== 'running') return;
+    const budget = getTargetSpawnBudget();
+    if (activeCounts.targets >= budget) return;
+
+    const phaseSpeedMult = 1 + (run.phase - 1) * config.OBJECTIVE.phaseTargetSpeedMultStep;
+    const x = rand(state.width * 0.14, state.width * 0.86);
+    const y = rand(state.height * 0.12, state.height * 0.5);
+    const radius = rand(13, 24);
+    const mass = rand(2.4, 4.8) * (1 / phaseSpeedMult);
+    spawnTarget(x, y, radius, mass, pick(palettes));
+  }
+
+  function updateObjectiveLoop(timeScale) {
+    const run = state.objectiveRun;
+    if (!config.OBJECTIVE.enabled || !run) return;
+
+    if (run.status !== 'running') {
+      run.objectiveText = run.status === 'failed' ? 'Run failed - press R or tap to restart' : 'Phase complete - survive the next wave';
+      return;
+    }
+
+    const dtMs = timeScale * 16.666;
+    run.comboTimerMs = Math.max(0, run.comboTimerMs - dtMs);
+    if (run.comboTimerMs === 0) run.combo = 0;
+
+    run.phaseTimerMs = Math.max(0, run.phaseTimerMs - dtMs);
+    run.spawnCooldownMs -= dtMs;
+    run.pressure = clamp(run.pressure - config.OBJECTIVE.pressureDecayPerSecond * (dtMs / 1000), 0, config.OBJECTIVE.maxPressure);
+
+    if (run.spawnCooldownMs <= 0) {
+      spawnObjectiveTarget();
+      run.spawnCooldownMs = config.OBJECTIVE.spawnCooldownMs + rand(-config.OBJECTIVE.spawnJitterMs, config.OBJECTIVE.spawnJitterMs);
+    }
+
+    const remaining = Math.max(0, run.phaseClearTarget - run.phaseClears);
+    run.objectiveText = `Clear ${remaining} target${remaining === 1 ? '' : 's'} this phase`;
+
+    if (run.phaseClears >= run.phaseClearTarget) {
+      run.phase += 1;
+      run.phaseClears = 0;
+      run.phaseTimerMs = config.OBJECTIVE.phaseDurationMs;
+      run.phaseClearTarget = config.OBJECTIVE.phaseClearTargetBase + (run.phase - 1) * config.OBJECTIVE.phaseClearTargetStep;
+      run.pressure = clamp(run.pressure - 12, 0, config.OBJECTIVE.maxPressure);
+      run.objectiveText = `Phase ${run.phase} started`;
+    }
+
+    if (run.phaseTimerMs <= 0 && run.phaseClears < run.phaseClearTarget) {
+      run.pressure = clamp(run.pressure + config.OBJECTIVE.pressurePerExpire * 0.8, 0, config.OBJECTIVE.maxPressure);
+      run.phaseTimerMs = config.OBJECTIVE.phaseDurationMs * 0.35;
+      run.objectiveText = 'Phase overtime: pressure rising';
+    }
+
+    if (run.pressure >= config.OBJECTIVE.failPressure) {
+      run.status = 'failed';
+      state.activePointers.clear();
+      state.scheduledLaunches = [];
+      activeCounts.fireworks = 0;
+    }
+  }
+
   function update(timeScale, now) {
+    updateObjectiveLoop(timeScale);
     flushLaunchQueue(now);
     
     // Update Fever timer (dt is roughly equivalent to timeScale in ms contexts, though Fireworks engine handles dt in main loop, we decrement based on timeScale * 16.66)

@@ -2,6 +2,10 @@ import { pick, rand } from '../core/utils.js';
 
 export function createInputSystem({ canvas, hintEl, statusEl, palettes, state, config, engine }) {
   function beginInteraction(pointerId, x, y) {
+    if (state.objectiveRun?.status === 'failed') {
+      engine.resetObjectiveRun?.();
+    }
+
     if (!state.userInteracted) {
       state.userInteracted = true;
       hintEl.style.opacity = '0';
@@ -163,6 +167,15 @@ export function createInputSystem({ canvas, hintEl, statusEl, palettes, state, c
     endInteraction('mouse');
   }
 
+  function handleKeyDown(e) {
+    const isRestartKey = e.key === 'r' || e.key === 'R';
+    if (!isRestartKey) return;
+    if (state.objectiveRun?.status === 'failed') {
+      engine.resetObjectiveRun?.();
+      if (e.cancelable) e.preventDefault();
+    }
+  }
+
   canvas.addEventListener('pointerdown', handlePointerDown, { passive: false });
   canvas.addEventListener('pointermove', handlePointerMove, { passive: false });
   canvas.addEventListener('pointerup', handlePointerUp, { passive: false });
@@ -180,6 +193,7 @@ export function createInputSystem({ canvas, hintEl, statusEl, palettes, state, c
   window.addEventListener('mouseup', handleMouseUp, { passive: false });
 
   canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+  window.addEventListener('keydown', handleKeyDown, { passive: false });
 
   return {
     dispose() {
