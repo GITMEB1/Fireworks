@@ -146,6 +146,14 @@ export function renderChargeVisuals({ ctx, now, activePointers, config, engine }
           ctx.fillStyle = rgba('255,200,100', alpha);
           ctx.fillRect(engine.state.width / 2 - 100, 140, 200 * feverProgress, 4);
       }
+
+      if (engine.state.overchargeCueTimer > 0) {
+          const cueAlpha = Math.min(1, engine.state.overchargeCueTimer / config.CHARGE.dirty.cueDurationMs);
+          ctx.fillStyle = rgba('190,175,145', cueAlpha * 0.85);
+          ctx.font = 'bold 26px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText('OVERCHARGED', engine.state.width / 2, 92);
+      }
   }
 
   ctx.globalCompositeOperation = 'source-over';

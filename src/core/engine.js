@@ -104,12 +104,12 @@ export function createEngine({ config, palettes, state, audio }) {
     if (activeCounts.shockwaves >= limit) return;
     pools.shockwaves[activeCounts.shockwaves++].init(x, y, color, charge);
   }
-  function spawnShellTo(tx, ty, type, palette, startX = null, charge = 0, prestige = false) {
+  function spawnShellTo(tx, ty, type, palette, startX = null, charge = 0, prestige = false, outcomeMeta = null) {
     const limit = Math.floor(config.LIMITS.maxFireworks * clamp(state.qualityScale + 0.2, 0.6, 1.2));
     if (activeCounts.fireworks >= limit) return;
     const sx = startX == null ? rand(state.width * 0.2, state.width * 0.8) : startX;
     const sy = state.height + rand(14, 34);
-    pools.fireworks[activeCounts.fireworks++].init(sx, sy, tx, ty, type, palette || pick(palettes), charge, prestige);
+    pools.fireworks[activeCounts.fireworks++].init(sx, sy, tx, ty, type, palette || pick(palettes), charge, prestige, outcomeMeta);
   }
   function spawnFlash(x, y, color, size = 76, alpha = 0.14) {
     resetPCfg();
@@ -159,8 +159,8 @@ export function createEngine({ config, palettes, state, audio }) {
     pools.targets[activeCounts.targets++].init(x, y, radius, mass, targetColor);
   }
 
-  function queueLaunch(delayMs, tx, ty, type = null, palette = null, startX = null, charge = 0, prestige = false) {
-    state.scheduledLaunches.push({ at: performance.now() + delayMs, tx, ty, type, palette, startX, charge, prestige });
+  function queueLaunch(delayMs, tx, ty, type = null, palette = null, startX = null, charge = 0, prestige = false, outcomeMeta = null) {
+    state.scheduledLaunches.push({ at: performance.now() + delayMs, tx, ty, type, palette, startX, charge, prestige, outcomeMeta });
   }
 
   function triggerSupernova(color) {
@@ -183,6 +183,9 @@ export function createEngine({ config, palettes, state, audio }) {
     } else {
       // Normal or dirty shots reset the combo
       state.combo = 0;
+      if (type === 'dirty') {
+        state.overchargeCueTimer = config.CHARGE.dirty.cueDurationMs;
+      }
     }
   }
 
@@ -194,7 +197,7 @@ export function createEngine({ config, palettes, state, audio }) {
     if (state.scheduledLaunches.length === 0) return;
     const pending = [];
     for (const l of state.scheduledLaunches) {
-      if (l.at <= now) spawnShellTo(l.tx, l.ty, l.type, l.palette, l.startX, l.charge, l.prestige);
+      if (l.at <= now) spawnShellTo(l.tx, l.ty, l.type, l.palette, l.startX, l.charge, l.prestige, l.outcomeMeta);
       else pending.push(l);
     }
     state.scheduledLaunches = pending;
@@ -217,6 +220,9 @@ export function createEngine({ config, palettes, state, audio }) {
     // Update Fever timer (dt is roughly equivalent to timeScale in ms contexts, though Fireworks engine handles dt in main loop, we decrement based on timeScale * 16.66)
     if (state.feverTimer > 0) {
       state.feverTimer -= timeScale * 16.66;
+    }
+    if (state.overchargeCueTimer > 0) {
+      state.overchargeCueTimer -= timeScale * 16.66;
     }
 
     // Sputter sparks for active pointers

@@ -149,24 +149,28 @@ export class PooledParticle {
 
 export class PooledFirework {
   constructor(engine) { this.engine = engine; this.history = new Float32Array(64); }
-  init(startX, startY, targetX, targetY, type, palette, charge = 0, prestige = false) {
+  init(startX, startY, targetX, targetY, type, palette, charge = 0, prestige = false, outcomeMeta = null) {
     this.x = startX; this.y = startY;
     this.targetX = targetX; this.targetY = targetY;
     this.charge = charge; this.prestige = prestige;
     this.type = type || weightedShellType(this.engine.config, charge);
+    this.outcome = outcomeMeta?.outcome || (this.type === 'dirty' ? 'dirty' : 'normal');
+    this.overchargeRatio = Math.max(0, Math.min(1, outcomeMeta?.overchargeRatio || 0));
     this.palette = palette;
 
     this.timeToTarget = rand(38, 58) * (prestige ? 1.05 : 1);
     this.vx = (targetX - startX) / this.timeToTarget;
     this.vy = (targetY - startY) / this.timeToTarget - 0.5 * this.engine.config.gravity * this.timeToTarget;
 
-    this.isHeavy = ['palm', 'willow', 'brocade', 'doubleBreak'].includes(this.type) || charge > 0.5 || prestige;
+    const isDirty = this.outcome === 'dirty';
+    this.isHeavy = !isDirty && (['palm', 'willow', 'brocade', 'doubleBreak'].includes(this.type) || charge > 0.5 || prestige);
     this.historyLength = Math.floor((this.isHeavy ? 7 : 4) + charge * 5 + (prestige ? 2 : 0));
-    this.color = prestige ? '255,245,220' : (this.isHeavy ? '255,220,150' : '255,180,110');
-    this.lineWidth = (this.isHeavy ? 2.8 : 1.6) + charge * 1.5 + (prestige ? 0.7 : 0);
-    this.sparkRate = (this.isHeavy ? 0.25 : 0.12) + charge * 0.2 + (prestige ? 0.1 : 0);
-    this.launchGlowColor = this.palette[0];
+    this.color = isDirty ? '160,150,120' : (prestige ? '255,245,220' : (this.isHeavy ? '255,220,150' : '255,180,110'));
+    this.lineWidth = isDirty ? (1.4 + this.overchargeRatio * 0.4) : ((this.isHeavy ? 2.8 : 1.6) + charge * 1.5 + (prestige ? 0.7 : 0));
+    this.sparkRate = isDirty ? (0.08 + this.overchargeRatio * 0.12) : ((this.isHeavy ? 0.25 : 0.12) + charge * 0.2 + (prestige ? 0.1 : 0));
+    this.launchGlowColor = isDirty ? '120,112,96' : this.palette[0];
     this.histIndex = 0; this.histCount = 0;
+    this.sputterCooldown = 0;
   }
   update(timeScale) {
     this.histIndex = (this.histIndex - 2) & 62;
@@ -174,13 +178,24 @@ export class PooledFirework {
     this.history[this.histIndex + 1] = this.y;
     if (this.histCount < this.historyLength) this.histCount++;
 
+    const isDirty = this.outcome === 'dirty';
     this.vy += this.engine.config.gravity * timeScale;
+    if (isDirty) {
+      this.vx += rand(-0.015, 0.015) * (1 + this.overchargeRatio * 1.2) * timeScale;
+    }
     this.x += this.vx * timeScale;
     this.y += this.vy * timeScale;
     this.timeToTarget -= 1 * timeScale;
 
     if (Math.random() < this.sparkRate) {
       this.engine.spawnAscentSpark(this.x, this.y, this.color, this.vx, this.vy, this.type, this.charge, this.prestige);
+    }
+    if (isDirty) {
+      this.sputterCooldown -= timeScale;
+      if (this.sputterCooldown <= 0) {
+        this.sputterCooldown = rand(2.2, 4.6);
+        this.engine.spawnContinuousSpark(this.x, this.y, '135,128,112', rand(-0.4, 0.4), rand(-0.3, 0.3));
+      }
     }
     if (Math.random() < 0.07 && this.engine.config.smokeEnabled) {
       this.engine.spawnSmokeBurst(this.x, this.y, this.launchGlowColor, 1);
