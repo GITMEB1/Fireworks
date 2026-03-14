@@ -73,7 +73,11 @@ export function createEngine({ config, palettes, state, audio }) {
       totalClears: 0,
       totalExpiries: 0,
       spawnCooldownMs: 800,
-      lastShotType: 'normal'
+      lastShotType: 'normal',
+      urgentTargets: 0,
+      criticalTargets: 0,
+      lastHitFeedback: '',
+      lastHitFeedbackTimerMs: 0
     };
   }
 
@@ -184,17 +188,20 @@ export function createEngine({ config, palettes, state, audio }) {
   }
 
 
-  function spawnTarget(x, y, radius = rand(14, 26), mass = rand(2.2, 5.6), color = pick(palettes)) {
+  function spawnTarget(x, y, radius = rand(14, 26), mass = rand(2.2, 5.6), color = pick(palettes), objectiveProfile = null) {
     const limit = Math.floor(config.LIMITS.maxTargets * clamp(state.qualityScale + 0.25, 0.5, 1.2));
     if (activeCounts.targets >= limit) return;
     const targetColor = Array.isArray(color) ? pick(color) : color;
-    pools.targets[activeCounts.targets++].init(x, y, radius, mass, targetColor);
+    pools.targets[activeCounts.targets++].init(x, y, radius, mass, targetColor, objectiveProfile);
   }
 
-  function onTargetDamaged(target, intensity) {
+  function onTargetDamaged(target, intensity, hitMeta = {}) {
     const run = state.objectiveRun;
     if (!run || run.status !== 'running') return;
     run.score += Math.max(1, Math.round(config.OBJECTIVE.scorePerHit * intensity));
+    if (hitMeta.hitQuality === 'direct') run.score += config.OBJECTIVE.scoreDirectHitBonus;
+    if (hitMeta.hitQuality === 'glancing') run.score = Math.max(0, run.score - Math.floor(config.OBJECTIVE.scoreDirectHitBonus * 0.35));
+
     if (target.health <= 0) {
       if (run.comboTimerMs > 0) {
         run.combo = Math.min(config.OBJECTIVE.comboMax, run.combo + 1);
@@ -205,11 +212,19 @@ export function createEngine({ config, palettes, state, audio }) {
 
       const comboMult = 1 + (run.combo - 1) * config.OBJECTIVE.comboBonusPerStep;
       const perfectBonus = run.lastShotType === 'supernova' ? config.OBJECTIVE.scorePerfectBonus : 0;
-      run.score += Math.round((config.OBJECTIVE.scorePerClear + perfectBonus) * comboMult);
+      const criticalFinishBonus = hitMeta.wasCritical ? config.OBJECTIVE.scoreCriticalFinishBonus : 0;
+      run.score += Math.round((config.OBJECTIVE.scorePerClear + perfectBonus + criticalFinishBonus) * comboMult);
       run.phaseClears += 1;
       run.totalClears += 1;
       const recovery = run.lastShotType === 'supernova' ? config.OBJECTIVE.pressureRecoveryOnPerfect : config.OBJECTIVE.pressureRecoveryOnClear;
-      run.pressure = clamp(run.pressure - recovery, 0, config.OBJECTIVE.maxPressure);
+      const criticalRecovery = hitMeta.wasCritical ? config.OBJECTIVE.pressureRecoveryCriticalBonus : 0;
+      run.pressure = clamp(run.pressure - recovery - criticalRecovery, 0, config.OBJECTIVE.maxPressure);
+
+      run.lastHitFeedback = hitMeta.hitQuality === 'direct' ? 'Direct hit clear' : (hitMeta.hitQuality === 'glancing' ? 'Glancing clear' : 'Target cleared');
+      run.lastHitFeedbackTimerMs = 900;
+    } else {
+      run.lastHitFeedback = hitMeta.hitQuality === 'direct' ? 'Direct hit' : (hitMeta.hitQuality === 'glancing' ? 'Glancing hit' : 'Hit confirmed');
+      run.lastHitFeedbackTimerMs = 520;
     }
   }
 
@@ -270,10 +285,14 @@ export function createEngine({ config, palettes, state, audio }) {
         if (poolName === 'targets') {
           const reason = pools[poolName][i].removalReason;
           if (reason === 'expired' && state.objectiveRun && state.objectiveRun.status === 'running') {
+            const expiredTarget = pools[poolName][i];
+            const expirePressureMult = expiredTarget?.expirePressureMult || 1;
             state.objectiveRun.totalExpiries += 1;
             state.objectiveRun.combo = 0;
             state.objectiveRun.comboTimerMs = 0;
-            state.objectiveRun.pressure = clamp(state.objectiveRun.pressure + config.OBJECTIVE.pressurePerExpire, 0, config.OBJECTIVE.maxPressure);
+            state.objectiveRun.lastHitFeedback = expiredTarget?.kind === 'priority' ? 'Priority target missed' : 'Target expired';
+            state.objectiveRun.lastHitFeedbackTimerMs = 900;
+            state.objectiveRun.pressure = clamp(state.objectiveRun.pressure + config.OBJECTIVE.pressurePerExpire * expirePressureMult, 0, config.OBJECTIVE.maxPressure);
           }
         }
         const last = pools[poolName][activeCounts[poolName] - 1];
@@ -297,11 +316,34 @@ export function createEngine({ config, palettes, state, audio }) {
     if (activeCounts.targets >= budget) return;
 
     const phaseSpeedMult = 1 + (run.phase - 1) * config.OBJECTIVE.phaseTargetSpeedMultStep;
+    const phaseHealth = config.OBJECTIVE.targetBaseHealth + (run.phase - 1) * config.OBJECTIVE.targetHealthPhaseStep;
+    let targetKind = 'normal';
+    let healthMult = 1;
+    let lifetimeMult = 1;
+    let expirePressureMult = 1;
+
+    if (Math.random() < config.OBJECTIVE.targetPriorityChance) {
+      targetKind = 'priority';
+      healthMult = config.OBJECTIVE.targetPriorityHealthMult;
+      lifetimeMult = config.OBJECTIVE.targetPriorityLifetimeMult;
+      expirePressureMult = config.OBJECTIVE.targetPriorityExpirePressureMult;
+    } else if (Math.random() < config.OBJECTIVE.targetArmoredChance) {
+      targetKind = 'armored';
+      healthMult = config.OBJECTIVE.targetArmoredHealthMult;
+      lifetimeMult = config.OBJECTIVE.targetArmoredLifetimeMult;
+    }
+
     const x = rand(state.width * 0.14, state.width * 0.86);
     const y = rand(state.height * 0.12, state.height * 0.5);
-    const radius = rand(13, 24);
-    const mass = rand(2.4, 4.8) * (1 / phaseSpeedMult);
-    spawnTarget(x, y, radius, mass, pick(palettes));
+    const radius = targetKind === 'armored' ? rand(17, 26) : rand(13, 24);
+    const mass = rand(2.4, 4.8) * (1 / phaseSpeedMult) * (targetKind === 'armored' ? 1.16 : 1);
+    const objectiveProfile = {
+      kind: targetKind,
+      health: phaseHealth * healthMult,
+      lifetimeMs: config.OBJECTIVE.targetLifetimeMs * lifetimeMult,
+      expirePressureMult
+    };
+    spawnTarget(x, y, radius, mass, pick(palettes), objectiveProfile);
   }
 
   function updateObjectiveLoop(timeScale) {
@@ -316,6 +358,8 @@ export function createEngine({ config, palettes, state, audio }) {
     const dtMs = timeScale * 16.666;
     run.comboTimerMs = Math.max(0, run.comboTimerMs - dtMs);
     if (run.comboTimerMs === 0) run.combo = 0;
+    run.lastHitFeedbackTimerMs = Math.max(0, run.lastHitFeedbackTimerMs - dtMs);
+    if (run.lastHitFeedbackTimerMs === 0) run.lastHitFeedback = '';
 
     run.phaseTimerMs = Math.max(0, run.phaseTimerMs - dtMs);
     run.spawnCooldownMs -= dtMs;
@@ -326,8 +370,24 @@ export function createEngine({ config, palettes, state, audio }) {
       run.spawnCooldownMs = config.OBJECTIVE.spawnCooldownMs + rand(-config.OBJECTIVE.spawnJitterMs, config.OBJECTIVE.spawnJitterMs);
     }
 
+    let urgent = 0;
+    let critical = 0;
+    for (let i = 0; i < activeCounts.targets; i++) {
+      const target = pools.targets[i];
+      if (target.isUrgent) urgent += 1;
+      if (target.healthState === 'critical') critical += 1;
+    }
+    run.urgentTargets = urgent;
+    run.criticalTargets = critical;
+
     const remaining = Math.max(0, run.phaseClearTarget - run.phaseClears);
-    run.objectiveText = `Clear ${remaining} target${remaining === 1 ? '' : 's'} this phase`;
+    if (urgent > 0) {
+      run.objectiveText = `Clear ${remaining} | Urgent ${urgent}`;
+    } else if (critical > 0) {
+      run.objectiveText = `Clear ${remaining} | Critical ${critical}`;
+    } else {
+      run.objectiveText = `Clear ${remaining} target${remaining === 1 ? '' : 's'} this phase`;
+    }
 
     if (run.phaseClears >= run.phaseClearTarget) {
       run.phase += 1;
