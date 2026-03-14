@@ -14,28 +14,39 @@ export function createShellRegistry(engine) {
     }
   }
 
-  function shellWillow({ x, y, countMult, velMult, charge, prestige }) {
+  function shellWillow({ x, y, countMult, velMult, charge, prestige, signatureContext = null }) {
     const goldA = engine.palettes[0][0], goldB = engine.palettes[0][1];
-    const count = Math.floor(80 * countMult);
+    const sustainStretch = signatureContext?.family === 'sustainCascade' ? 1 + signatureContext.secondaryDensity * 0.3 : 1;
+    const count = Math.floor(80 * countMult * sustainStretch);
     for (let i = 0; i < count; i++) {
       engine.resetPCfg();
       engine.pCfg.angle = rand(0, Math.PI * 2);
-      engine.pCfg.velocity = rand(1.5, 6.5) * velMult; engine.pCfg.drag = 0.968; engine.pCfg.gravMult = 0.82; engine.pCfg.decay = rand(0.0042, 0.0065);
+      engine.pCfg.velocity = rand(1.5, 6.5) * velMult; engine.pCfg.drag = 0.968; engine.pCfg.gravMult = 0.82;
+      engine.pCfg.decay = signatureContext?.family === 'sustainCascade' ? rand(0.0036, 0.0056) : rand(0.0042, 0.0065);
       engine.pCfg.trailLength = 12 + Math.floor(charge * 6) + (prestige ? 2 : 0);
       engine.pCfg.size = rand(1.4, 2.1) * (1 + charge * 0.3); engine.pCfg.sparkleChance = prestige ? 0.09 : 0.05;
+      if (signatureContext?.family === 'sustainCascade' && Math.random() < signatureContext.secondaryDensity * 0.48) {
+        engine.pCfg.deathBehavior = DEATH_GHOST;
+        engine.pCfg.signatureFamily = 'sustainCascade';
+        engine.pCfg.signatureStage = signatureContext.degradeStage;
+        engine.pCfg.velMult = velMult * 0.8;
+        engine.pCfg.charge = charge;
+      }
       engine.spawnParticle(x, y, Math.random() < 0.5 ? goldA : goldB, engine.pCfg);
     }
     engine.spawnGlow(x, y, goldA, 120 * velMult, 0.12 * (1 + charge), 0.01);
   }
 
-  function shellRing({ x, y, palette, countMult, velMult, charge }) {
-    const count = Math.floor(44 * countMult);
+  function shellRing({ x, y, palette, countMult, velMult, charge, signatureContext = null }) {
+    const structureBoost = signatureContext?.family === 'precisionBloom' ? 1.08 : 1;
+    const count = Math.floor(44 * countMult * structureBoost);
     const angleOffset = rand(0, Math.PI * 2);
     const ringColor = pick(palette);
     for (let i = 0; i < count; i++) {
       engine.resetPCfg();
       engine.pCfg.angle = (i / count) * Math.PI * 2 + angleOffset;
-      engine.pCfg.velocity = rand(5.8, 6.5) * velMult; engine.pCfg.drag = 0.942; engine.pCfg.decay = rand(0.010, 0.013);
+      engine.pCfg.velocity = rand(5.8, 6.5) * velMult; engine.pCfg.drag = 0.942;
+      engine.pCfg.decay = signatureContext?.family === 'precisionBloom' ? rand(0.011, 0.014) : rand(0.010, 0.013);
       engine.pCfg.trailLength = 4; engine.pCfg.size = 1.8 * (1 + charge * 0.3);
       engine.spawnParticle(x, y, ringColor, engine.pCfg);
     }
@@ -121,14 +132,18 @@ export function createShellRegistry(engine) {
     }
   }
 
-  function shellDoubleBreak({ x, y, palette, countMult, velMult, charge }) {
-    const count = Math.floor(28 * countMult);
+  function shellDoubleBreak({ x, y, palette, countMult, velMult, charge, signatureContext = null }) {
+    const transformBias = signatureContext?.family === 'volatileTransform' ? (0.8 + signatureContext.secondaryDensity * 0.55) : 1;
+    const count = Math.floor(28 * countMult * transformBias);
     const primary = pick(palette), secondary = Math.random() < 0.45 ? '255,255,255' : pick(palette);
     for (let i = 0; i < count; i++) {
       engine.resetPCfg();
       engine.pCfg.angle = rand(0, Math.PI * 2); engine.pCfg.velocity = rand(3.2, 7.6) * velMult;
-      engine.pCfg.drag = 0.942; engine.pCfg.decay = rand(0.012, 0.016); engine.pCfg.trailLength = 5;
+      engine.pCfg.drag = 0.942;
+      engine.pCfg.decay = signatureContext?.family === 'volatileTransform' ? rand(0.013, 0.018) : rand(0.012, 0.016); engine.pCfg.trailLength = 5;
       engine.pCfg.deathBehavior = DEATH_DOUBLE_BREAK; engine.pCfg.velMult = velMult; engine.pCfg.charge = charge;
+      engine.pCfg.signatureFamily = signatureContext?.family || null;
+      engine.pCfg.signatureStage = signatureContext?.degradeStage || 0;
       engine.pCfg.secondaryColor = secondary;
       engine.spawnParticle(x, y, primary, engine.pCfg);
     }
@@ -253,6 +268,106 @@ export function createShellRegistry(engine) {
 
   const shells = { peony: shellPeony, willow: shellWillow, ring: shellRing, crossette: shellCrossette, crackle: shellCrackle, palm: shellPalm, spiral: shellSpiral, brocade: shellBrocade, ghost: shellGhost, doubleBreak: shellDoubleBreak, fizzle: shellFizzle, heart: shellHeart, star: shellStar, smiley: shellSmiley, dirty: shellDirty };
 
+  function resolveSignatureContext(type, countMult) {
+    const bssds = engine.config.BSSDS;
+    if (!bssds?.enabled) return null;
+
+    const family = bssds.shellTaxonomy[type] || 'precisionBloom';
+    const signature = bssds.signatures[family];
+    if (!signature) return null;
+
+    const globalLimit = Math.floor(engine.config.LIMITS.maxParticles * engine.state.qualityScale);
+    const usage = globalLimit > 0 ? engine.activeCounts.particles / globalLimit : 1;
+
+    let degradeStage = 0;
+    for (const step of signature.degradeLadder) {
+      if (usage >= step.triggerUsage || engine.state.reducedMotion) degradeStage += 1;
+    }
+
+    const stepIdx = Math.max(0, Math.min(signature.degradeLadder.length - 1, degradeStage - 1));
+    const activeStep = signature.degradeLadder[stepIdx];
+    const countScale = degradeStage === 0 ? 1 : (activeStep?.countMult ?? 0.58);
+    const secondaryDensity = degradeStage === 0 ? 1 : (activeStep?.secondaryDensity ?? 0.28);
+
+    const hardCap = Math.floor(signature.particleCap * engine.state.qualityScale * (engine.state.reducedMotion ? 0.72 : 1));
+    const intended = Math.floor(75 * countMult * countScale);
+    const remainingGlobal = Math.max(0, globalLimit - engine.activeCounts.particles);
+    const remainingBudget = Math.max(0, Math.min(hardCap, remainingGlobal));
+
+    return {
+      family,
+      signature,
+      degradeStage,
+      secondaryDensity,
+      countMultAdjusted: Math.max(0.45, countMult * countScale * Math.min(1, remainingBudget / Math.max(1, intended))),
+      budgetRemaining: remainingBudget,
+      shouldSkipSecondaries: degradeStage >= 3 || remainingBudget < 32
+    };
+  }
+
+  function runSignatureOpening(x, y, palette, velMult, charge, ctx) {
+    if (!ctx || ctx.budgetRemaining <= 0) return;
+
+    if (ctx.family === 'precisionBloom') {
+      const spokes = Math.min(14, Math.floor(8 + 5 * ctx.secondaryDensity));
+      const offset = rand(0, Math.PI * 2);
+      for (let i = 0; i < spokes && ctx.budgetRemaining > 0; i++) {
+        engine.resetPCfg();
+        engine.pCfg.angle = offset + (i / spokes) * Math.PI * 2;
+        engine.pCfg.velocity = rand(5.8, 6.9) * velMult;
+        engine.pCfg.drag = 0.94;
+        engine.pCfg.decay = rand(0.014, 0.018);
+        engine.pCfg.trailLength = 3;
+        engine.pCfg.size = 1.4 + charge * 0.2;
+        engine.spawnParticle(x, y, palette[0], engine.pCfg);
+        ctx.budgetRemaining -= 1;
+      }
+      return;
+    }
+
+    if (ctx.family === 'sustainCascade') {
+      const seeds = Math.min(18, Math.floor(10 + 8 * ctx.secondaryDensity));
+      for (let i = 0; i < seeds && ctx.budgetRemaining > 0; i++) {
+        engine.resetPCfg();
+        engine.pCfg.angle = rand(-Math.PI * 0.85, -Math.PI * 0.15);
+        engine.pCfg.velocity = rand(2.2, 4.8) * velMult;
+        engine.pCfg.drag = 0.966;
+        engine.pCfg.gravMult = 0.84;
+        engine.pCfg.decay = rand(0.006, 0.009);
+        engine.pCfg.trailLength = 8;
+        engine.pCfg.size = 1.6;
+        engine.pCfg.deathBehavior = DEATH_GHOST;
+        engine.pCfg.signatureFamily = 'sustainCascade';
+        engine.pCfg.signatureStage = ctx.degradeStage;
+        engine.pCfg.velMult = velMult * 0.9;
+        engine.spawnParticle(x, y, palette[0], engine.pCfg);
+        ctx.budgetRemaining -= 1;
+      }
+      return;
+    }
+
+    if (ctx.family === 'volatileTransform') {
+      const seeds = Math.min(16, Math.floor(8 + 8 * ctx.secondaryDensity));
+      for (let i = 0; i < seeds && ctx.budgetRemaining > 0; i++) {
+        engine.resetPCfg();
+        engine.pCfg.angle = rand(0, Math.PI * 2) + (i % 2 === 0 ? 0.25 : -0.25);
+        engine.pCfg.velocity = rand(2.8, 6.2) * velMult * (i % 3 === 0 ? 1.16 : 0.92);
+        engine.pCfg.drag = 0.945;
+        engine.pCfg.decay = rand(0.010, 0.014);
+        engine.pCfg.trailLength = 4;
+        engine.pCfg.size = 1.5;
+        engine.pCfg.deathBehavior = i % 2 === 0 ? DEATH_DOUBLE_BREAK : DEATH_CRACKLE;
+        engine.pCfg.signatureFamily = 'volatileTransform';
+        engine.pCfg.signatureStage = ctx.degradeStage;
+        engine.pCfg.velMult = velMult;
+        engine.pCfg.charge = charge;
+        engine.pCfg.secondaryColor = palette[1] || palette[0];
+        engine.spawnParticle(x, y, pick(palette), engine.pCfg);
+        ctx.budgetRemaining -= 1;
+      }
+    }
+  }
+
   function createExplosion(x, y, type, palette, charge = 0, prestige = false) {
     if (type === 'fizzle') {
         applyExplosionImpactToTargets(x, y, 72, charge);
@@ -294,16 +409,28 @@ export function createShellRegistry(engine) {
         velMult *= 1.5;
     }
 
+    const signatureContext = resolveSignatureContext(type, countMult);
+    if (signatureContext) countMult = signatureContext.countMultAdjusted;
+
     const explosionRadius = 110 * velMult;
     applyExplosionImpactToTargets(x, y, explosionRadius, charge);
 
-    engine.spawnFlash(x, y, flashColor, rand(58, 92) * velMult * 1.2, 0.12 + charge * 0.1 + (prestige ? 0.05 : 0));
+    const flashAlphaBase = signatureContext?.family === 'sustainCascade' ? 0.1 : 0.12;
+    engine.spawnFlash(x, y, flashColor, rand(58, 92) * velMult * 1.2, flashAlphaBase + charge * 0.1 + (prestige ? 0.05 : 0));
     engine.spawnGlow(x, y, flashColor, rand(65, 110) * velMult, rand(0.08, 0.18) * (1 + charge + (prestige ? 0.2 : 0)), rand(0.012, 0.02));
-    engine.spawnSmokeBurst(x, y, flashColor, Math.floor((['brocade', 'willow', 'doubleBreak'].includes(type) ? 4 : 3) * countMult));
-    engine.spawnEmbers(x, y, flashColor, Math.floor((type === 'crackle' ? 14 : 8) * countMult));
-    if (charge > 0.4 || prestige) engine.spawnShockwave(x, y, flashColor, prestige ? Math.max(charge, 0.82) : charge);
 
-    (shells[type] || shellPeony)({ x, y, palette, countMult, velMult, charge, prestige });
+    runSignatureOpening(x, y, palette, velMult, charge, signatureContext);
+
+    const smokeAmt = Math.floor((['brocade', 'willow', 'doubleBreak'].includes(type) ? 4 : 3) * countMult);
+    const emberBase = type === 'crackle' ? 14 : 8;
+    const emberAmt = Math.floor(emberBase * countMult * (signatureContext?.secondaryDensity || 1));
+    engine.spawnSmokeBurst(x, y, flashColor, smokeAmt);
+    engine.spawnEmbers(x, y, flashColor, emberAmt);
+    if ((charge > 0.4 || prestige) && !signatureContext?.shouldSkipSecondaries) {
+      engine.spawnShockwave(x, y, flashColor, prestige ? Math.max(charge, 0.82) : charge);
+    }
+
+    (shells[type] || shellPeony)({ x, y, palette, countMult, velMult, charge, prestige, signatureContext });
   }
 
   return { createExplosion };

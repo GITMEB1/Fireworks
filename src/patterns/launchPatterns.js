@@ -23,11 +23,13 @@ export function createLaunchPatternRunner(engine) {
       }
       case 'finale': {
         const bursts = 6 + Math.floor(rand(0, 4));
+        const signatureShowcase = ['ring', 'willow', 'doubleBreak'];
         for (let i = 0; i < bursts; i++) {
           const tx = rand(w * 0.14, w * 0.86);
           const ty = rand(h * 0.12, h * 0.5);
           const bCharge = Math.max(charge, rand(0.45, 1));
-          engine.queueLaunch(i * rand(40, 95), tx, ty, pick(['brocade', 'willow', 'doubleBreak', 'ghost', 'peony']), palette, tx + rand(-80, 80), bCharge, bCharge >= engine.config.CHARGE.prestigeThreshold);
+          const curated = i < signatureShowcase.length ? signatureShowcase[i] : pick(['brocade', 'willow', 'doubleBreak', 'ghost', 'peony', 'ring']);
+          engine.queueLaunch(i * rand(40, 95), tx, ty, curated, palette, tx + rand(-80, 80), bCharge, bCharge >= engine.config.CHARGE.prestigeThreshold);
         }
         break;
       }
