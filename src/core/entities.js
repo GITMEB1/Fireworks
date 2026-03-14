@@ -92,6 +92,7 @@ export class PooledParticle {
     this.strobeSpeed = rand(0.07, 0.14); this.sparkleChance = cfg.sparkleChance;
     this.deathBehavior = cfg.deathBehavior; this.velMult = cfg.velMult;
     this.charge = cfg.charge; this.secondaryColor = cfg.secondaryColor;
+    this.signatureFamily = cfg.signatureFamily; this.signatureStage = cfg.signatureStage;
     const a = cfg.angle;
     this.vx = Math.cos(a) * cfg.velocity + cfg.inheritVX;
     this.vy = Math.sin(a) * cfg.velocity + cfg.inheritVY;

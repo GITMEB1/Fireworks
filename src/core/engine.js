@@ -18,7 +18,7 @@ export function createEngine({ config, palettes, state, audio }) {
       alpha: 1, decay: 0.015, size: 1.7, drag: config.baseFriction, gravMult: 1,
       trailLength: 4, isFlash: false, isStrobe: false, sparkleChance: 0,
       deathBehavior: DEATH_NONE, angle: 0, velocity: 0, inheritVX: 0, inheritVY: 0,
-      velMult: 1, charge: 0, secondaryColor: null
+      velMult: 1, charge: 0, secondaryColor: null, signatureFamily: null, signatureStage: 0
     },
     resetPCfg,
     preAllocatePools,
@@ -63,6 +63,7 @@ export function createEngine({ config, palettes, state, audio }) {
     pCfg.deathBehavior = DEATH_NONE; pCfg.angle = 0; pCfg.velocity = 0;
     pCfg.inheritVX = 0; pCfg.inheritVY = 0;
     pCfg.velMult = 1; pCfg.charge = 0; pCfg.secondaryColor = null;
+    pCfg.signatureFamily = null; pCfg.signatureStage = 0;
   }
 
   function preAllocatePools() {

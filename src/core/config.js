@@ -89,6 +89,59 @@ export const CONFIG = {
     }
   },
 
+  BSSDS: {
+    enabled: true,
+    shellTaxonomy: {
+      peony: 'precisionBloom',
+      ring: 'precisionBloom',
+      palm: 'precisionBloom',
+      heart: 'precisionBloom',
+      star: 'precisionBloom',
+      smiley: 'precisionBloom',
+
+      willow: 'sustainCascade',
+      brocade: 'sustainCascade',
+      ghost: 'sustainCascade',
+
+      crossette: 'volatileTransform',
+      crackle: 'volatileTransform',
+      spiral: 'volatileTransform',
+      doubleBreak: 'volatileTransform'
+    },
+    signatures: {
+      precisionBloom: {
+        timingProfile: 'fastPunch',
+        choreographyPhases: ['openingRing', 'cleanMainBreak', 'minimalSecondary'],
+        particleCap: 220,
+        degradeLadder: [
+          { triggerUsage: 0.68, countMult: 0.84, secondaryDensity: 0.72 },
+          { triggerUsage: 0.82, countMult: 0.68, secondaryDensity: 0.45 },
+          { triggerUsage: 0.92, countMult: 0.54, secondaryDensity: 0.18 }
+        ]
+      },
+      sustainCascade: {
+        timingProfile: 'lingeringCurtain',
+        choreographyPhases: ['softOpen', 'cascadeMain', 'lateLinger'],
+        particleCap: 250,
+        degradeLadder: [
+          { triggerUsage: 0.64, countMult: 0.86, secondaryDensity: 0.8 },
+          { triggerUsage: 0.79, countMult: 0.7, secondaryDensity: 0.58 },
+          { triggerUsage: 0.9, countMult: 0.56, secondaryDensity: 0.32 }
+        ]
+      },
+      volatileTransform: {
+        timingProfile: 'stagedTransform',
+        choreographyPhases: ['splitSeed', 'transformBreak', 'asymmetricAftershock'],
+        particleCap: 230,
+        degradeLadder: [
+          { triggerUsage: 0.62, countMult: 0.82, secondaryDensity: 0.68 },
+          { triggerUsage: 0.76, countMult: 0.66, secondaryDensity: 0.44 },
+          { triggerUsage: 0.88, countMult: 0.52, secondaryDensity: 0.24 }
+        ]
+      }
+    }
+  },
+
   shellWeights: {
     peony: 1.2, willow: 1.0, ring: 0.9, crossette: 0.8,
     crackle: 0.9, palm: 0.8, spiral: 0.7, brocade: 0.78,
@@ -129,6 +182,18 @@ export function createConfig(overrides = {}) {
       shellFlightProfileByType: {
         ...CONFIG.PHYSICS.shellFlightProfileByType,
         ...((overrides.PHYSICS && overrides.PHYSICS.shellFlightProfileByType) || {})
+      }
+    },
+    BSSDS: {
+      ...CONFIG.BSSDS,
+      ...(overrides.BSSDS || {}),
+      shellTaxonomy: {
+        ...CONFIG.BSSDS.shellTaxonomy,
+        ...((overrides.BSSDS && overrides.BSSDS.shellTaxonomy) || {})
+      },
+      signatures: {
+        ...CONFIG.BSSDS.signatures,
+        ...((overrides.BSSDS && overrides.BSSDS.signatures) || {})
       }
     },
     shellWeights: { ...CONFIG.shellWeights, ...(overrides.shellWeights || {}) }
