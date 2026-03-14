@@ -1,0 +1,61 @@
+version: 1
+source: "migrated from root opportunities_inventory.yaml + .agents discovery runs"
+items:
+  - id: OPP-001
+    title: Atmospheric Drag Physics
+    seam_targets: [core_simulation, quality_performance]
+    anchors:
+      - src/core/entities.js
+    summary: Replace constant friction feel with velocity-sensitive drag for more believable slowdowns.
+
+  - id: OPP-002
+    title: Overcharge Dirty Burst
+    seam_targets: [input, behavior, render]
+    anchors:
+      - src/systems/inputSystem.js
+      - src/shells/registry.js
+    summary: Convert hard fizzle into unstable but rewarding burst to reduce frustration.
+
+  - id: OPP-003
+    title: Supernova Hit-Stop Micro-pause
+    seam_targets: [core_simulation, render]
+    anchors:
+      - src/core/engine.js
+    summary: Add tiny pause at peak impact to increase perceived force.
+
+  - id: OPP-004
+    title: Procedural Audio Tension Layer
+    seam_targets: [audio, input, core_simulation]
+    anchors:
+      - src/systems/audioSystem.js
+      - src/core/engine.js
+    summary: Use charge/explosion sonification to amplify emotional feedback.
+
+  - id: OPP-005
+    title: Trajectory Prediction Arc
+    seam_targets: [input, render]
+    anchors:
+      - src/render/overlayRenderer.js
+      - src/systems/inputSystem.js
+    summary: Show expected path while charging to improve control and mastery.
+
+  - id: OPP-006
+    title: Offscreen Physics Worker Investigation
+    seam_targets: [core_simulation, quality_performance, app_composition]
+    anchors:
+      - src/core/engine.js
+    summary: Explore worker/off-main-thread physics for high-particle scenarios.
+
+  - id: OPP-007
+    title: Dynamic Bloom Pulse
+    seam_targets: [render, quality_performance]
+    anchors:
+      - src/render/renderer.js
+    summary: Apply short, controlled bloom pulses around major explosions.
+
+  - id: OPP-008
+    title: Tilt-to-Aim (Mobile)
+    seam_targets: [input, app_composition]
+    anchors:
+      - src/systems/inputSystem.js
+    summary: Add optional orientation-based steering for mobile novelty.
