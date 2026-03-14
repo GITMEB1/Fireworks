@@ -84,7 +84,26 @@ export const CONFIG = {
     phaseClearTargetBase: 6,
     phaseClearTargetStep: 2,
     phaseTargetSpeedMultStep: 0.08,
-    qualityTargetScaleMin: 0.55
+    qualityTargetScaleMin: 0.55,
+    targetBaseHealth: 1.4,
+    targetHealthPhaseStep: 0.11,
+    targetPriorityChance: 0.3,
+    targetPriorityLifetimeMult: 0.72,
+    targetPriorityHealthMult: 0.9,
+    targetPriorityExpirePressureMult: 1.25,
+    targetArmoredChance: 0.24,
+    targetArmoredHealthMult: 1.35,
+    targetArmoredLifetimeMult: 1.15,
+    targetCriticalHealthRatio: 0.38,
+    targetUrgentLifetimeRatio: 0.22,
+    targetHitFlashMs: 180,
+    hitQualityCenterRadiusMult: 1.7,
+    hitQualityDirectBonus: 0.45,
+    hitQualityGlancePenalty: 0.22,
+    hitQualityGlanceThreshold: 0.32,
+    scoreDirectHitBonus: 18,
+    scoreCriticalFinishBonus: 45,
+    pressureRecoveryCriticalBonus: 4
   },
 
   PHYSICS: {

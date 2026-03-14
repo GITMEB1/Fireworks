@@ -124,7 +124,7 @@ export function renderChargeVisuals({ ctx, now, activePointers, config, engine }
           const pressureWarn = run.pressure >= config.OBJECTIVE.warningPressure;
           const pad = 16;
           const panelW = Math.min(engine.state.width * 0.5, 320);
-          const panelH = 108;
+          const panelH = 126;
 
           ctx.fillStyle = 'rgba(10,14,26,0.62)';
           ctx.fillRect(pad, pad, panelW, panelH);
@@ -138,12 +138,17 @@ export function renderChargeVisuals({ ctx, now, activePointers, config, engine }
           ctx.font = '500 13px sans-serif';
           ctx.fillText(run.objectiveText, pad + 12, pad + 66);
 
+          const targetStatus = `Urgent ${run.urgentTargets || 0}  Critical ${run.criticalTargets || 0}`;
+          ctx.fillStyle = 'rgba(255,220,170,0.9)';
+          ctx.font = '500 12px sans-serif';
+          ctx.fillText(targetStatus, pad + 12, pad + 84);
+
           const timerSec = Math.ceil(run.phaseTimerMs / 1000);
           ctx.fillStyle = 'rgba(255,255,255,0.82)';
           ctx.fillText(`Time ${timerSec}s`, pad + panelW - 76, pad + 24);
 
           const barX = pad + 12;
-          const barY = pad + 80;
+          const barY = pad + 96;
           const barW = panelW - 24;
           const barH = 12;
           ctx.fillStyle = 'rgba(255,255,255,0.14)';
@@ -152,7 +157,14 @@ export function renderChargeVisuals({ ctx, now, activePointers, config, engine }
           ctx.fillRect(barX, barY, barW * pressureNorm, barH);
           ctx.fillStyle = 'rgba(255,255,255,0.9)';
           ctx.font = '600 11px sans-serif';
-          ctx.fillText(`Pressure ${Math.round(run.pressure)}/${config.OBJECTIVE.maxPressure}`, barX, barY + 26);
+          ctx.fillText(`Pressure ${Math.round(run.pressure)}/${config.OBJECTIVE.maxPressure}`, barX, barY + 22);
+
+          if (run.lastHitFeedbackTimerMs > 0 && run.lastHitFeedback) {
+            const feedbackAlpha = Math.min(1, run.lastHitFeedbackTimerMs / 900);
+            ctx.fillStyle = `rgba(255,255,255,${0.6 + feedbackAlpha * 0.35})`;
+            ctx.font = '600 12px sans-serif';
+            ctx.fillText(run.lastHitFeedback, barX, barY + 40);
+          }
 
           if (run.status === 'failed') {
             ctx.fillStyle = 'rgba(12,8,18,0.76)';

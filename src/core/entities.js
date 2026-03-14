@@ -282,24 +282,43 @@ export class PooledTarget {
     this.engine = engine;
     this.lastImpactEventId = -1;
   }
-  init(x, y, radius, mass, color) {
+  init(x, y, radius, mass, color, objectiveProfile = null) {
+    const objectiveCfg = this.engine.config.OBJECTIVE || {};
     this.x = x; this.y = y;
     this.vx = rand(-1.2, 1.2); this.vy = rand(-0.6, 0.6);
     this.mass = Math.max(0.1, mass);
-    this.health = 1;
     this.radius = radius;
     this.color = color;
     this.rotation = rand(0, Math.PI * 2);
     this.rotationSpeed = rand(-0.035, 0.035);
+
+    this.kind = objectiveProfile?.kind || 'normal';
+    this.expirePressureMult = objectiveProfile?.expirePressureMult || 1;
+    this.lifetimeMs = objectiveProfile?.lifetimeMs || objectiveCfg.targetLifetimeMs || 7600;
+    this.health = Math.max(0.2, objectiveProfile?.health || 1);
     this.maxHealth = this.health;
+
     this.ageMs = 0;
-    this.lifetimeMs = this.engine.config.OBJECTIVE?.targetLifetimeMs || 7600;
+    this.hitFlashMs = 0;
+    this.hitFlashDurationMs = Math.max(40, objectiveCfg.targetHitFlashMs || 180);
+    this.hitQuality = 'normal';
+    this.lastImpactIntensity = 0;
+    this.healthState = 'fresh';
+    this.isUrgent = false;
     this.removalReason = null;
     this.lastImpactEventId = -1;
+  }
+  updateStateFlags() {
+    const objectiveCfg = this.engine.config.OBJECTIVE || {};
+    const healthRatio = this.maxHealth > 0 ? this.health / this.maxHealth : 0;
+    const lifeRatio = this.lifetimeMs > 0 ? (this.lifetimeMs - this.ageMs) / this.lifetimeMs : 0;
+    this.isUrgent = lifeRatio <= (objectiveCfg.targetUrgentLifetimeRatio || 0.2);
+    this.healthState = healthRatio <= (objectiveCfg.targetCriticalHealthRatio || 0.35) ? 'critical' : (healthRatio < 0.8 ? 'damaged' : 'fresh');
   }
   update(timeScale) {
     const { state, config } = this.engine;
     this.ageMs += timeScale * 16.666;
+    this.hitFlashMs = Math.max(0, this.hitFlashMs - timeScale * 16.666);
     this.vy += config.gravity * timeScale;
     this.x += this.vx * timeScale;
     this.y += this.vy * timeScale;
@@ -328,6 +347,8 @@ export class PooledTarget {
       if (Math.abs(this.vy) < 0.1) this.vy = 0;
     }
 
+    this.updateStateFlags();
+
     if (this.ageMs >= this.lifetimeMs && this.health > 0) {
       this.removalReason = 'expired';
       this.health = 0;
@@ -342,6 +363,10 @@ export class PooledTarget {
     return false;
   }
   draw(ctx) {
+    const lifeRatio = this.lifetimeMs > 0 ? (this.lifetimeMs - this.ageMs) / this.lifetimeMs : 0;
+    const urgentPulse = this.isUrgent ? (0.5 + 0.5 * Math.sin(this.ageMs * 0.018)) : 0;
+    const ringAlpha = this.healthState === 'critical' ? 0.72 + urgentPulse * 0.18 : 0.48 + urgentPulse * 0.16;
+
     ctx.save();
     ctx.translate(this.x, this.y);
     ctx.rotate(this.rotation);
@@ -351,10 +376,25 @@ export class PooledTarget {
     ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
     ctx.fill();
 
+    if (this.hitFlashMs > 0) {
+      const flash = this.hitFlashMs / this.hitFlashDurationMs;
+      ctx.fillStyle = `rgba(255,255,255,${0.18 + flash * 0.32})`;
+      ctx.beginPath();
+      ctx.arc(0, 0, this.radius * (1.06 + flash * 0.12), 0, Math.PI * 2);
+      ctx.fill();
+    }
+
     ctx.lineWidth = Math.max(1.5, this.radius * 0.24);
-    ctx.strokeStyle = 'rgba(255,255,255,0.75)';
+    ctx.strokeStyle = this.healthState === 'critical' ? `rgba(255,120,120,${ringAlpha})` : `rgba(255,255,255,${ringAlpha})`;
     ctx.beginPath();
     ctx.arc(0, 0, this.radius * 0.92, 0, Math.PI * 2);
+    ctx.stroke();
+
+    const lifeArcAlpha = this.isUrgent ? 0.95 : 0.42;
+    ctx.strokeStyle = `rgba(255,220,130,${lifeArcAlpha})`;
+    ctx.lineWidth = Math.max(1, this.radius * 0.16);
+    ctx.beginPath();
+    ctx.arc(0, 0, this.radius * 1.16, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.max(0.05, lifeRatio));
     ctx.stroke();
 
     ctx.fillStyle = 'rgba(255,255,255,0.35)';
@@ -368,40 +408,37 @@ export class PooledTarget {
     if (impactEventId != null && this.lastImpactEventId === impactEventId) return;
     if (impactEventId != null) this.lastImpactEventId = impactEventId;
 
-    this.health -= intensity;
-    const impulse = intensity / this.mass;
+    const objectiveCfg = this.engine.config.OBJECTIVE || {};
+    const distanceToCore = Math.hypot(this.x - impactX, this.y - impactY);
+    const qualityRadius = Math.max(4, this.radius * (objectiveCfg.hitQualityCenterRadiusMult || 1.7));
+    const centerBias = Math.max(0, Math.min(1, 1 - (distanceToCore / qualityRadius)));
+    const directBonus = objectiveCfg.hitQualityDirectBonus || 0;
+    const glancePenalty = objectiveCfg.hitQualityGlancePenalty || 0;
+    const glanceThreshold = objectiveCfg.hitQualityGlanceThreshold || 0.3;
+    const qualityMult = 1 + centerBias * directBonus - (centerBias < glanceThreshold ? glancePenalty : 0);
+
+    const appliedIntensity = Math.max(0.03, intensity * qualityMult);
+    this.health -= appliedIntensity;
+    this.lastImpactIntensity = appliedIntensity;
+    this.hitQuality = centerBias >= 0.68 ? 'direct' : (centerBias <= glanceThreshold ? 'glancing' : 'normal');
+    this.hitFlashMs = this.hitFlashDurationMs;
+
+    const impulse = appliedIntensity / this.mass;
     this.vx += (this.x - impactX) * impulse;
     this.vy += (this.y - impactY) * impulse;
     this.vy -= impulse * 2;
-    this.rotationSpeed += rand(-0.02, 0.02) * (1 + intensity);
+    this.rotationSpeed += rand(-0.02, 0.02) * (1 + appliedIntensity);
 
-    this.engine.onTargetDamaged?.(this, intensity);
+    this.updateStateFlags();
+    this.engine.onTargetDamaged?.(this, appliedIntensity, {
+      hitQuality: this.hitQuality,
+      isUrgent: this.isUrgent,
+      wasCritical: this.healthState === 'critical'
+    });
+
     if (this.health <= 0) {
       this.removalReason = 'cleared';
-      this.shatter();
     }
-  }
-  shatter() {
-    const count = Math.floor(rand(15, 26));
-    const speedFactor = rand(0.3, 0.6);
-
-    for (let i = 0; i < count; i++) {
-      this.engine.resetPCfg();
-      const pCfg = this.engine.pCfg;
-      pCfg.angle = rand(0, Math.PI * 2);
-      pCfg.velocity = rand(1.2, 4.2);
-      pCfg.drag = 0.94;
-      pCfg.gravMult = 0.95;
-      pCfg.decay = rand(0.02, 0.04);
-      pCfg.size = rand(1.0, 2.4);
-      pCfg.trailLength = 2;
-      pCfg.alpha = 1;
-      pCfg.inheritVX = this.vx * speedFactor + rand(-1.6, 1.6);
-      pCfg.inheritVY = this.vy * speedFactor + rand(-1.6, 1.2);
-      this.engine.spawnParticle(this.x, this.y, this.color, pCfg);
-    }
-
-    this.engine.spawnSmokeBurst(this.x, this.y, this.color, 3);
-    this.health = 0;
   }
 }
+
