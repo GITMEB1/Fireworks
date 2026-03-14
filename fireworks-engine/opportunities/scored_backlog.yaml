@@ -1,0 +1,134 @@
+version: 1
+scoring_scale:
+  gain_fields: "0-5, higher is better"
+  cost_risk_fields: "0-5, higher is worse"
+  testability: "0-5, higher is easier to verify"
+  seam_count: "integer count of seams touched"
+items:
+  - id: OPP-002
+    title: Overcharge Dirty Burst
+    delight_gain: 5
+    spectacle_gain: 4
+    clarity_gain: 4
+    retention_gain: 5
+    perf_cost: 2
+    complexity: 3
+    regression_risk: 2
+    mobile_risk: 2
+    seam_count: 3
+    testability: 4
+    prototype_first: false
+    ship_recommendation: ship
+    rationale: "Directly addresses known frustration at 100% charge while preserving skill tension."
+
+  - id: OPP-004
+    title: Procedural Audio Tension Layer
+    delight_gain: 4
+    spectacle_gain: 3
+    clarity_gain: 3
+    retention_gain: 4
+    perf_cost: 2
+    complexity: 3
+    regression_risk: 2
+    mobile_risk: 3
+    seam_count: 3
+    testability: 3
+    prototype_first: true
+    ship_recommendation: prototype
+    rationale: "High emotional upside, but requires autoplay-safe integration and device checks."
+
+  - id: OPP-005
+    title: Trajectory Prediction Arc
+    delight_gain: 3
+    spectacle_gain: 2
+    clarity_gain: 5
+    retention_gain: 4
+    perf_cost: 1
+    complexity: 2
+    regression_risk: 2
+    mobile_risk: 1
+    seam_count: 2
+    testability: 5
+    prototype_first: false
+    ship_recommendation: ship
+    rationale: "Clear skill/readability gain with low runtime cost."
+
+  - id: OPP-007
+    title: Dynamic Bloom Pulse
+    delight_gain: 4
+    spectacle_gain: 5
+    clarity_gain: 2
+    retention_gain: 3
+    perf_cost: 3
+    complexity: 2
+    regression_risk: 2
+    mobile_risk: 3
+    seam_count: 2
+    testability: 3
+    prototype_first: true
+    ship_recommendation: prototype
+    rationale: "Visually strong but needs careful perf guardrails on mobile."
+
+  - id: OPP-001
+    title: Atmospheric Drag Physics
+    delight_gain: 3
+    spectacle_gain: 2
+    clarity_gain: 2
+    retention_gain: 2
+    perf_cost: 1
+    complexity: 2
+    regression_risk: 3
+    mobile_risk: 1
+    seam_count: 2
+    testability: 4
+    prototype_first: true
+    ship_recommendation: prototype
+    rationale: "Subtle feel improvement; must ensure it does not flatten existing shell personality."
+
+  - id: OPP-003
+    title: Supernova Hit-Stop Micro-pause
+    delight_gain: 4
+    spectacle_gain: 4
+    clarity_gain: 1
+    retention_gain: 3
+    perf_cost: 1
+    complexity: 1
+    regression_risk: 2
+    mobile_risk: 1
+    seam_count: 2
+    testability: 4
+    prototype_first: false
+    ship_recommendation: ship
+    rationale: "Small implementation with high perceived impact on supernova moments."
+
+  - id: OPP-008
+    title: Tilt-to-Aim (Mobile)
+    delight_gain: 3
+    spectacle_gain: 2
+    clarity_gain: 2
+    retention_gain: 3
+    perf_cost: 1
+    complexity: 3
+    regression_risk: 3
+    mobile_risk: 4
+    seam_count: 2
+    testability: 2
+    prototype_first: true
+    ship_recommendation: prototype
+    rationale: "Novel but platform-fragile; ship only behind optional toggle."
+
+  - id: OPP-006
+    title: Offscreen Physics Worker Investigation
+    delight_gain: 1
+    spectacle_gain: 1
+    clarity_gain: 1
+    retention_gain: 2
+    perf_cost: 1
+    complexity: 5
+    regression_risk: 4
+    mobile_risk: 3
+    seam_count: 3
+    testability: 2
+    prototype_first: true
+    ship_recommendation: defer
+    rationale: "Potentially large refactor with uncertain product-visible gain at current scale."
