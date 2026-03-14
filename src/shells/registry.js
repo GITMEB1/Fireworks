@@ -52,7 +52,7 @@ export function createShellRegistry(engine) {
     }
   }
 
-  function shellCrossette({ x, y, palette, countMult, velMult, charge }) {
+  function shellCrossette({ x, y, palette, countMult, velMult, charge, signatureContext = null }) {
     const count = Math.floor(24 * countMult);
     for (let i = 0; i < count; i++) {
       engine.resetPCfg();
@@ -60,11 +60,13 @@ export function createShellRegistry(engine) {
       engine.pCfg.velocity = rand(4.2, 7.2) * velMult; engine.pCfg.drag = 0.958; engine.pCfg.decay = rand(0.017, 0.022);
       engine.pCfg.trailLength = 5; engine.pCfg.size = 2.4 * (1 + charge * 0.2);
       engine.pCfg.deathBehavior = DEATH_CROSSETTE; engine.pCfg.velMult = velMult; engine.pCfg.charge = charge;
+      engine.pCfg.signatureFamily = signatureContext?.family || null;
+      engine.pCfg.signatureStage = signatureContext?.degradeStage || 0;
       engine.spawnParticle(x, y, pick(palette), engine.pCfg);
     }
   }
 
-  function shellCrackle({ x, y, palette, countMult, velMult, charge }) {
+  function shellCrackle({ x, y, palette, countMult, velMult, charge, signatureContext = null }) {
     const color = pick(palette);
     const count = Math.floor(72 * countMult);
     for (let i = 0; i < count; i++) {
@@ -73,6 +75,8 @@ export function createShellRegistry(engine) {
       engine.pCfg.velocity = rand(1.4, 8.4) * velMult; engine.pCfg.drag = 0.93; engine.pCfg.decay = rand(0.013, 0.018);
       engine.pCfg.trailLength = 2; engine.pCfg.size = rand(1.6, 2.2) * (1 + charge * 0.2); engine.pCfg.isStrobe = true;
       engine.pCfg.deathBehavior = DEATH_CRACKLE; engine.pCfg.velMult = velMult;
+      engine.pCfg.signatureFamily = signatureContext?.family || null;
+      engine.pCfg.signatureStage = signatureContext?.degradeStage || 0;
       engine.spawnParticle(x, y, color, engine.pCfg);
     }
   }
@@ -120,7 +124,7 @@ export function createShellRegistry(engine) {
     }
   }
 
-  function shellGhost({ x, y, palette, countMult, velMult, charge }) {
+  function shellGhost({ x, y, palette, countMult, velMult, charge, signatureContext = null }) {
     const outer = Math.floor(46 * countMult);
     const dimColor = pick(palette);
     for (let i = 0; i < outer; i++) {
@@ -128,6 +132,8 @@ export function createShellRegistry(engine) {
       engine.pCfg.angle = rand(0, Math.PI * 2); engine.pCfg.velocity = rand(2.4, 6.8) * velMult;
       engine.pCfg.drag = 0.94; engine.pCfg.decay = rand(0.012, 0.017); engine.pCfg.trailLength = 5;
       engine.pCfg.deathBehavior = DEATH_GHOST; engine.pCfg.velMult = velMult; engine.pCfg.charge = charge;
+      engine.pCfg.signatureFamily = signatureContext?.family || null;
+      engine.pCfg.signatureStage = signatureContext?.degradeStage || 0;
       engine.spawnParticle(x, y, dimColor, engine.pCfg);
     }
   }
@@ -319,6 +325,13 @@ export function createShellRegistry(engine) {
         engine.pCfg.decay = rand(0.014, 0.018);
         engine.pCfg.trailLength = 3;
         engine.pCfg.size = 1.4 + charge * 0.2;
+        if (ctx.secondaryDensity > 0.5 && i % 4 === 0) {
+          engine.pCfg.deathBehavior = DEATH_CROSSETTE;
+          engine.pCfg.signatureFamily = 'precisionBloom';
+          engine.pCfg.signatureStage = ctx.degradeStage;
+          engine.pCfg.velMult = velMult * 0.92;
+          engine.pCfg.charge = charge;
+        }
         engine.spawnParticle(x, y, palette[0], engine.pCfg);
         ctx.budgetRemaining -= 1;
       }

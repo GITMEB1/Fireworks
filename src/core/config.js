@@ -113,6 +113,7 @@ export const CONFIG = {
         timingProfile: 'fastPunch',
         choreographyPhases: ['openingRing', 'cleanMainBreak', 'minimalSecondary'],
         particleCap: 220,
+        secondaryCaps: { crossette: 4, crackle: 2, ghost: 1, doubleBreak: 3 },
         degradeLadder: [
           { triggerUsage: 0.68, countMult: 0.84, secondaryDensity: 0.72 },
           { triggerUsage: 0.82, countMult: 0.68, secondaryDensity: 0.45 },
@@ -123,6 +124,7 @@ export const CONFIG = {
         timingProfile: 'lingeringCurtain',
         choreographyPhases: ['softOpen', 'cascadeMain', 'lateLinger'],
         particleCap: 250,
+        secondaryCaps: { crossette: 2, crackle: 2, ghost: 2, doubleBreak: 2 },
         degradeLadder: [
           { triggerUsage: 0.64, countMult: 0.86, secondaryDensity: 0.8 },
           { triggerUsage: 0.79, countMult: 0.7, secondaryDensity: 0.58 },
@@ -133,6 +135,7 @@ export const CONFIG = {
         timingProfile: 'stagedTransform',
         choreographyPhases: ['splitSeed', 'transformBreak', 'asymmetricAftershock'],
         particleCap: 230,
+        secondaryCaps: { crossette: 3, crackle: 3, ghost: 1, doubleBreak: 6 },
         degradeLadder: [
           { triggerUsage: 0.62, countMult: 0.82, secondaryDensity: 0.68 },
           { triggerUsage: 0.76, countMult: 0.66, secondaryDensity: 0.44 },
@@ -140,6 +143,7 @@ export const CONFIG = {
         ]
       }
     }
+
   },
 
   shellWeights: {
