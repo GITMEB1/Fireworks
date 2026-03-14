@@ -213,22 +213,26 @@ export function createShellRegistry(engine) {
     }
   }
 
-  function shellDirty({ x, y, palettes, countMult }) {
-    // Unstable, multi-colored burst with heavy smoke
-    const count = Math.floor(45 * countMult);
-    engine.spawnSmokeBurst(x, y, '120,120,130', 8);
+  function shellDirty({ x, y, palette, countMult, degrade = 0.5 }) {
+    const qualityFactor = Math.max(0.6, engine.state.qualityScale);
+    const reducedMotionFactor = engine.state.reducedMotion ? 0.55 : 1;
+    const count = Math.max(12, Math.floor(42 * countMult * qualityFactor * reducedMotionFactor));
+    const contamination = ['120,112,96', '136,128,110', '152,142,120', '170,160,132'];
+
+    engine.spawnSmokeBurst(x, y, '120,120,130', Math.max(2, Math.floor((4 + degrade * 4) * reducedMotionFactor)));
     for (let i = 0; i < count; i++) {
       engine.resetPCfg();
       engine.pCfg.angle = rand(0, Math.PI * 2);
-      engine.pCfg.velocity = rand(1.5, 9.5);
-      engine.pCfg.drag = rand(0.88, 0.94); // Heavy/uneven drag
-      engine.pCfg.decay = rand(0.015, 0.035);
-      engine.pCfg.trailLength = rand(1, 4);
-      engine.pCfg.size = rand(1.2, 2.8);
-      engine.pCfg.sparkleChance = 0.15;
-      // Pick randomly from all palettes for an "unstable" look
-      const randomPalette = pick(palettes);
-      engine.spawnParticle(x, y, pick(randomPalette), engine.pCfg);
+      const instability = 1 + degrade * 0.55;
+      engine.pCfg.velocity = rand(1.5, 7.4) / instability;
+      engine.pCfg.drag = rand(0.86, 0.93);
+      engine.pCfg.decay = rand(0.018, 0.032) * instability;
+      engine.pCfg.trailLength = rand(1, 3);
+      engine.pCfg.size = rand(1.1, 2.2);
+      engine.pCfg.sparkleChance = engine.state.reducedMotion ? 0.04 : 0.1;
+      const baseColor = pick(palette);
+      const dirtyColor = Math.random() < (0.45 + degrade * 0.35) ? pick(contamination) : baseColor;
+      engine.spawnParticle(x, y, dirtyColor, engine.pCfg);
     }
   }
 
@@ -257,9 +261,16 @@ export function createShellRegistry(engine) {
     }
 
     if (type === 'dirty') {
-        applyExplosionImpactToTargets(x, y, 110, charge);
-        engine.spawnFlash(x, y, '255,255,255', 40, 0.3);
-        shells.dirty({ x, y, palettes: engine.palettes, countMult: 1.2 });
+        const dirtyCfg = engine.config.CHARGE.dirty;
+        const degrade = dirtyCfg.minDegrade + (dirtyCfg.maxDegrade - dirtyCfg.minDegrade) * Math.min(1, Math.max(0, charge));
+        const impactPenalty = -0.2 - degrade * 0.2;
+        const radius = 72 + 28 * (1 - degrade);
+        applyExplosionImpactToTargets(x, y, radius, impactPenalty);
+
+        const flashAlpha = engine.state.reducedMotion ? 0.14 : 0.22;
+        engine.spawnFlash(x, y, '185,170,145', 32 + 18 * (1 - degrade), flashAlpha);
+        engine.spawnGlow(x, y, '145,132,108', 54 + 18 * (1 - degrade), 0.08, 0.022);
+        shells.dirty({ x, y, palette, countMult: 0.9 + (1 - degrade) * 0.4, degrade });
         return;
     }
 

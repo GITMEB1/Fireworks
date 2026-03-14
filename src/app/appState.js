@@ -19,6 +19,7 @@ export function createAppState() {
     timeDilationTimer: 0,
     screenShakeTimer: 0,
     flashTimer: 0,
-    flashColor: '255,255,255'
+    flashColor: '255,255,255',
+    overchargeCueTimer: 0
   };
 }

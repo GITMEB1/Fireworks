@@ -54,14 +54,15 @@ export function createInputSystem({ canvas, hintEl, statusEl, palettes, state, c
 
     const duration = performance.now() - p.startTime;
     let charge = 0;
+    let rawCharge = 0;
     let chargeState = 'normal';
     
     if (duration >= config.CHARGE.minDuration) {
-      charge = (duration - config.CHARGE.minDuration) / (config.CHARGE.maxDuration - config.CHARGE.minDuration);
-      if (charge >= 1.0) {
+      rawCharge = (duration - config.CHARGE.minDuration) / (config.CHARGE.maxDuration - config.CHARGE.minDuration);
+      charge = Math.min(1, rawCharge);
+      if (rawCharge >= 1.0) {
         chargeState = 'overcharge';
-        charge = 1;
-      } else if (charge >= 0.95 && charge < 1.0) {
+      } else if (rawCharge >= 0.95 && rawCharge < 1.0) {
         chargeState = 'perfect';
       } else {
         chargeState = 'normal';
@@ -69,14 +70,20 @@ export function createInputSystem({ canvas, hintEl, statusEl, palettes, state, c
     }
 
     if (chargeState === 'overcharge') {
+      const extraOverchargeMs = Math.max(0, duration - config.CHARGE.maxDuration);
+      const overchargeRatio = Math.min(1, extraOverchargeMs / config.CHARGE.dirty.overchargeWindowMs);
       engine.registerShot('dirty');
-      engine.spawnShellTo(p.targetX, p.targetY, 'dirty', p.palette, p.launchX, 0, false);
+      engine.spawnShellTo(p.targetX, p.targetY, 'dirty', p.palette, p.launchX, overchargeRatio, false, {
+        outcome: 'dirty',
+        overchargeRatio,
+        overchargeMs: extraOverchargeMs
+      });
     } else if (chargeState === 'perfect') {
       engine.registerShot('supernova');
-      engine.spawnShellTo(p.targetX, p.targetY, null, p.palette, p.launchX, 1.0, true);
+      engine.spawnShellTo(p.targetX, p.targetY, null, p.palette, p.launchX, 1.0, true, { outcome: 'perfect' });
     } else {
       engine.registerShot('normal');
-      engine.spawnShellTo(p.targetX, p.targetY, null, p.palette, p.launchX, charge, charge >= config.CHARGE.prestigeThreshold);
+      engine.spawnShellTo(p.targetX, p.targetY, null, p.palette, p.launchX, charge, charge >= config.CHARGE.prestigeThreshold, { outcome: 'normal' });
     }
   }
 

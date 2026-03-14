@@ -25,7 +25,13 @@ export const CONFIG = {
     maxDuration: 1450,
     maxMultiplier: 2.25,
     maxVelMultiplier: 1.45,
-    prestigeThreshold: 0.9
+    prestigeThreshold: 0.9,
+    dirty: {
+      overchargeWindowMs: 650,
+      minDegrade: 0.35,
+      maxDegrade: 0.75,
+      cueDurationMs: 800
+    }
   },
 
   QUALITY: {
