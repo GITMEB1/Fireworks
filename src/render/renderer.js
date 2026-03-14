@@ -7,6 +7,9 @@ export function createRenderer({ ctx, backgroundRenderer, activePointers, config
   let lastBloomW = 0, lastBloomH = 0;
   let bloomFrameCounter = 0;
   let bloomImpactPulseUntil = 0;
+  let bloomNeedsRefresh = true;
+  let smoothedBloomIntensity = 0;
+  let bloomCompositeAlpha = 0.18;
 
   function render(now, engine) {
     backgroundRenderer.renderBackground(now, engine);
@@ -30,7 +33,8 @@ export function createRenderer({ ctx, backgroundRenderer, activePointers, config
 
       const impactPulseActive = now < bloomImpactPulseUntil;
       const impactIntensity = clamp(shockwaveLoad * 0.55 + (impactPulseActive ? 0.5 : 0), 0, 1);
-      const bloomIntensity = clamp(0.08 + particleLoad * 0.32 + impactIntensity * 0.52, 0, 1);
+      const targetBloomIntensity = clamp(0.08 + particleLoad * 0.32 + impactIntensity * 0.52, 0, 1);
+      smoothedBloomIntensity += (targetBloomIntensity - smoothedBloomIntensity) * config.BLOOM.intensitySmoothing;
 
       const qualityFactor = clamp((engine.state.qualityScale - config.BLOOM.minQuality) / (1 - config.BLOOM.minQuality), 0, 1);
       const overload = Math.max(0, particleLoad - 0.72) / 0.28;
@@ -52,18 +56,24 @@ export function createRenderer({ ctx, backgroundRenderer, activePointers, config
         bloomCanvas.height = bh;
         lastBloomW = bw;
         lastBloomH = bh;
+        bloomNeedsRefresh = true;
       }
 
-      if (bloomFrameCounter === 0 || impactPulseActive) {
+      if (hasImpactFlash) bloomNeedsRefresh = true;
+
+      const shouldRefreshBloom = bloomNeedsRefresh || bloomFrameCounter === 0;
+      if (shouldRefreshBloom) {
         bloomCtx.clearRect(0, 0, bw, bh);
-        const blurRadius = Math.max(1.8, (3.6 + bloomIntensity * 5.8) * scale);
+        const blurRadius = Math.max(1.8, (3.6 + smoothedBloomIntensity * 5.8) * scale);
         bloomCtx.filter = `blur(${blurRadius}px)`;
         bloomCtx.drawImage(ctx.canvas, 0, 0, bw, bh);
         bloomCtx.filter = 'none';
+        bloomNeedsRefresh = false;
       }
 
+      bloomCompositeAlpha = clamp((config.BLOOM.baseAlpha + smoothedBloomIntensity * config.BLOOM.impactAlphaBoost) * overloadFade, 0.1, 0.62);
       ctx.globalCompositeOperation = 'lighter';
-      ctx.globalAlpha = clamp((config.BLOOM.baseAlpha + bloomIntensity * config.BLOOM.impactAlphaBoost) * overloadFade, 0.1, 0.62);
+      ctx.globalAlpha = bloomCompositeAlpha;
       ctx.drawImage(bloomCanvas, 0, 0, ctx.canvas.width, ctx.canvas.height);
       ctx.globalAlpha = 1.0;
       ctx.globalCompositeOperation = 'source-over';

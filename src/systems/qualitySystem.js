@@ -1,6 +1,12 @@
 import { clamp } from '../core/utils.js';
 
 export function createQualitySystem({ config, state, statusEl }) {
+  const sampleSize = Math.max(1, config.QUALITY.sampleSize);
+  const frameSamples = new Array(sampleSize).fill(16.666);
+  let sampleIndex = 0;
+  let sampleCount = 0;
+  let sampleSum = 0;
+
   function applyQualityProfile(force = false) {
     let targetScale = state.qualityScale;
     if (state.reducedMotion) targetScale = Math.min(targetScale, config.QUALITY.reduceMotionScale);
@@ -12,18 +18,35 @@ export function createQualitySystem({ config, state, statusEl }) {
     statusEl.style.opacity = state.userInteracted ? '1' : '0';
   }
 
+  function addSample(dt) {
+    if (sampleCount < sampleSize) {
+      frameSamples[sampleCount] = dt;
+      sampleSum += dt;
+      sampleCount += 1;
+      return;
+    }
+
+    sampleSum -= frameSamples[sampleIndex];
+    frameSamples[sampleIndex] = dt;
+    sampleSum += dt;
+    sampleIndex = (sampleIndex + 1) % sampleSize;
+  }
+
   function updateAdaptiveQuality(now, dt) {
     if (!config.QUALITY.enabled || state.hidden) return;
-    state.fpsSamples.push(dt);
-    if (state.fpsSamples.length > config.QUALITY.sampleSize) state.fpsSamples.shift();
-    if (state.fpsSamples.length < config.QUALITY.sampleSize) return;
+
+    addSample(dt);
+    if (sampleCount < sampleSize) return;
     if (now - state.lastQualityAdjust < config.QUALITY.cooldownMs) return;
 
-    const avg = state.fpsSamples.reduce((a, b) => a + b, 0) / state.fpsSamples.length;
+    const avg = sampleSum / sampleSize;
     let nextScale = state.qualityScale;
 
-    if (avg > config.QUALITY.degradeAvgMs) nextScale = Math.max(config.QUALITY.minScale, state.qualityScale - config.QUALITY.stepDown);
-    else if (!state.reducedMotion && avg < config.QUALITY.recoverAvgMs) nextScale = Math.min(config.QUALITY.maxScale, state.qualityScale + config.QUALITY.stepUp);
+    if (avg > config.QUALITY.degradeAvgMs) {
+      nextScale = Math.max(config.QUALITY.minScale, state.qualityScale - config.QUALITY.stepDown);
+    } else if (!state.reducedMotion && avg < config.QUALITY.recoverAvgMs) {
+      nextScale = Math.min(config.QUALITY.maxScale, state.qualityScale + config.QUALITY.stepUp);
+    }
 
     if (Math.abs(nextScale - state.qualityScale) > 0.001) {
       state.qualityScale = nextScale;
