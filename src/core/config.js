@@ -68,6 +68,23 @@ export const CONFIG = {
       heavyMultiplier: 0.72,
       dirtyMultiplier: 1.2,
       minDamping: 0.965
+    },
+    shellFlightProfiles: {
+      default: { dragMult: 1, gravityMult: 1, lateralDriftMult: 1 },
+      heavy: { dragMult: 0.96, gravityMult: 1.04, lateralDriftMult: 0.9 },
+      agile: { dragMult: 1.06, gravityMult: 0.98, lateralDriftMult: 1.08 },
+      floaty: { dragMult: 1.03, gravityMult: 0.96, lateralDriftMult: 1.12 }
+    },
+    shellFlightProfileByType: {
+      willow: 'heavy',
+      palm: 'heavy',
+      brocade: 'heavy',
+      doubleBreak: 'heavy',
+      ring: 'agile',
+      crossette: 'agile',
+      crackle: 'agile',
+      spiral: 'agile',
+      ghost: 'floaty'
     }
   },
 
@@ -103,6 +120,14 @@ export function createConfig(overrides = {}) {
       shellAtmosphericDrag: {
         ...CONFIG.PHYSICS.shellAtmosphericDrag,
         ...((overrides.PHYSICS && overrides.PHYSICS.shellAtmosphericDrag) || {})
+      },
+      shellFlightProfiles: {
+        ...CONFIG.PHYSICS.shellFlightProfiles,
+        ...((overrides.PHYSICS && overrides.PHYSICS.shellFlightProfiles) || {})
+      },
+      shellFlightProfileByType: {
+        ...CONFIG.PHYSICS.shellFlightProfileByType,
+        ...((overrides.PHYSICS && overrides.PHYSICS.shellFlightProfileByType) || {})
       }
     },
     shellWeights: { ...CONFIG.shellWeights, ...(overrides.shellWeights || {}) }
