@@ -151,6 +151,7 @@ export class PooledFirework {
   constructor(engine) { this.engine = engine; this.history = new Float32Array(64); }
   init(startX, startY, targetX, targetY, type, palette, charge = 0, prestige = false, outcomeMeta = null) {
     this.x = startX; this.y = startY;
+    this.startY = startY;
     this.targetX = targetX; this.targetY = targetY;
     this.charge = charge; this.prestige = prestige;
     this.type = type || weightedShellType(this.engine.config, charge);
@@ -188,10 +189,10 @@ export class PooledFirework {
 
     const dragCfg = this.engine.config.PHYSICS?.shellAtmosphericDrag;
     if (dragCfg?.enabled) {
-      const altitudeNorm = Math.min(1, Math.max(0, (this.targetY - this.y) / this.launchDistanceY));
-      this.altitudeNorm = altitudeNorm;
+      const launchProgress = Math.min(1, Math.max(0, (this.startY - this.y) / this.launchDistanceY));
+      this.altitudeNorm = launchProgress;
       const apexFactor = Math.max(0, -this.vy) / 2.6;
-      let dragStrength = dragCfg.base + (1 - altitudeNorm) * dragCfg.lowAltitudeBoost + apexFactor * dragCfg.apexBoost;
+      let dragStrength = dragCfg.base + (1 - launchProgress) * dragCfg.lowAltitudeBoost + apexFactor * dragCfg.apexBoost;
       if (this.isHeavy) dragStrength *= dragCfg.heavyMultiplier;
       if (isDirty) dragStrength *= dragCfg.dirtyMultiplier;
       const damping = Math.max(dragCfg.minDamping, 1 - dragStrength * timeScale);
