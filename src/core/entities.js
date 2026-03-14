@@ -190,9 +190,14 @@ export class PooledFirework {
     if (dragCfg?.enabled) {
       const altitudeNorm = Math.min(1, Math.max(0, (this.targetY - this.y) / this.launchDistanceY));
       this.altitudeNorm = altitudeNorm;
-      const apexWindowSpeed = Math.max(Number.EPSILON, dragCfg.apexWindowSpeed);
+      const apexWindowSpeed = Number.isFinite(dragCfg.apexWindowSpeed)
+        ? Math.max(Number.EPSILON, dragCfg.apexWindowSpeed)
+        : Number.EPSILON;
+      const apexWindowMultiplier = Number.isFinite(dragCfg.apexWindowMultiplier)
+        ? dragCfg.apexWindowMultiplier
+        : 1;
       const normalizedApexVelocity = clamp(Math.abs(this.vy) / apexWindowSpeed, 0, 1);
-      const apexFactor = (1 - normalizedApexVelocity) * dragCfg.apexWindowMultiplier;
+      const apexFactor = (1 - normalizedApexVelocity) * apexWindowMultiplier;
       let dragStrength = dragCfg.base + (1 - altitudeNorm) * dragCfg.lowAltitudeBoost + apexFactor * dragCfg.apexBoost;
       if (this.isHeavy) dragStrength *= dragCfg.heavyMultiplier;
       if (isDirty) dragStrength *= dragCfg.dirtyMultiplier;
