@@ -184,8 +184,34 @@ export class PooledFirework {
     this.histIndex = 0; this.histCount = 0;
     this.sputterCooldown = 0;
     this.launchDistanceY = Math.max(1, startY - targetY);
+    // Keep both names synced to ease merges with older apex-focused branches.
+    this.launchProgress = 0;
     this.altitudeNorm = 0;
   }
+
+  resolveLaunchProgress() {
+    const progress = Math.min(1, Math.max(0, (this.startY - this.y) / this.launchDistanceY));
+    // Legacy alias kept for older diffs that referenced altitudeNorm directly.
+    this.launchProgress = progress;
+    this.altitudeNorm = progress;
+    return progress;
+  }
+
+  applyAscentDrag(timeScale, isDirty, dragMult) {
+    const dragCfg = this.engine.config.PHYSICS?.shellAtmosphericDrag;
+    if (!dragCfg?.enabled) return;
+
+    const launchProgress = this.resolveLaunchProgress();
+    const apexFactor = Math.max(0, -this.vy) / 2.6;
+    let dragStrength = dragCfg.base + (1 - launchProgress) * dragCfg.lowAltitudeBoost + apexFactor * dragCfg.apexBoost;
+    if (this.isHeavy) dragStrength *= dragCfg.heavyMultiplier;
+    dragStrength *= dragMult;
+    if (isDirty) dragStrength *= dragCfg.dirtyMultiplier;
+    const damping = Math.max(dragCfg.minDamping, 1 - dragStrength * timeScale);
+    this.vx *= damping;
+    this.vy *= damping;
+  }
+
   update(timeScale) {
     this.histIndex = (this.histIndex - 2) & 62;
     this.history[this.histIndex] = this.x;
@@ -203,19 +229,7 @@ export class PooledFirework {
       this.vx += rand(-0.015, 0.015) * lateralDriftMult * (1 + this.overchargeRatio * 1.2) * timeScale;
     }
 
-    const dragCfg = this.engine.config.PHYSICS?.shellAtmosphericDrag;
-    if (dragCfg?.enabled) {
-      const launchProgress = Math.min(1, Math.max(0, (this.startY - this.y) / this.launchDistanceY));
-      this.altitudeNorm = launchProgress;
-      const apexFactor = Math.max(0, -this.vy) / 2.6;
-      let dragStrength = dragCfg.base + (1 - launchProgress) * dragCfg.lowAltitudeBoost + apexFactor * dragCfg.apexBoost;
-      if (this.isHeavy) dragStrength *= dragCfg.heavyMultiplier;
-      dragStrength *= dragMult;
-      if (isDirty) dragStrength *= dragCfg.dirtyMultiplier;
-      const damping = Math.max(dragCfg.minDamping, 1 - dragStrength * timeScale);
-      this.vx *= damping;
-      this.vy *= damping;
-    }
+    this.applyAscentDrag(timeScale, isDirty, dragMult);
 
     this.x += this.vx * timeScale;
     this.y += this.vy * timeScale;
