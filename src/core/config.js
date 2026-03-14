@@ -65,6 +65,8 @@ export const CONFIG = {
       base: 0.0032,
       lowAltitudeBoost: 0.003,
       apexBoost: 0.0055,
+      apexWindowSpeed: 2.6,
+      apexWindowMultiplier: 1,
       heavyMultiplier: 0.72,
       dirtyMultiplier: 1.2,
       minDamping: 0.965
