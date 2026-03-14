@@ -151,6 +151,7 @@ export class PooledFirework {
   constructor(engine) { this.engine = engine; this.history = new Float32Array(64); }
   init(startX, startY, targetX, targetY, type, palette, charge = 0, prestige = false, outcomeMeta = null) {
     this.x = startX; this.y = startY;
+    this.startY = startY;
     this.targetX = targetX; this.targetY = targetY;
     this.charge = charge; this.prestige = prestige;
     this.type = type || weightedShellType(this.engine.config, charge);
@@ -164,6 +165,17 @@ export class PooledFirework {
 
     const isDirty = this.outcome === 'dirty';
     this.isHeavy = !isDirty && (['palm', 'willow', 'brocade', 'doubleBreak'].includes(this.type) || charge > 0.5 || prestige);
+    const physicsCfg = this.engine.config.PHYSICS || {};
+    const profileMap = physicsCfg.shellFlightProfiles || {};
+    const profileByType = physicsCfg.shellFlightProfileByType || {};
+    const profileKey = profileByType[this.type] || 'default';
+    const defaultProfile = profileMap.default || { dragMult: 1, gravityMult: 1, lateralDriftMult: 1 };
+    const profile = profileMap[profileKey] || defaultProfile;
+    this.flightProfile = {
+      dragMult: profile.dragMult ?? defaultProfile.dragMult ?? 1,
+      gravityMult: profile.gravityMult ?? defaultProfile.gravityMult ?? 1,
+      lateralDriftMult: profile.lateralDriftMult ?? defaultProfile.lateralDriftMult ?? 1
+    };
     this.historyLength = Math.floor((this.isHeavy ? 7 : 4) + charge * 5 + (prestige ? 2 : 0));
     this.color = isDirty ? '160,150,120' : (prestige ? '255,245,220' : (this.isHeavy ? '255,220,150' : '255,180,110'));
     this.lineWidth = isDirty ? (1.4 + this.overchargeRatio * 0.4) : ((this.isHeavy ? 2.8 : 1.6) + charge * 1.5 + (prestige ? 0.7 : 0));
@@ -181,15 +193,20 @@ export class PooledFirework {
     if (this.histCount < this.historyLength) this.histCount++;
 
     const isDirty = this.outcome === 'dirty';
-    this.vy += this.engine.config.gravity * timeScale;
+    const profile = this.flightProfile || { dragMult: 1, gravityMult: 1, lateralDriftMult: 1 };
+    const gravityMult = Math.max(0.92, Math.min(1.08, profile.gravityMult ?? 1));
+    const dragMult = Math.max(0.9, Math.min(1.1, profile.dragMult ?? 1));
+    const lateralDriftMult = Math.max(0.85, Math.min(1.15, profile.lateralDriftMult ?? 1));
+
+    this.vy += this.engine.config.gravity * gravityMult * timeScale;
     if (isDirty) {
-      this.vx += rand(-0.015, 0.015) * (1 + this.overchargeRatio * 1.2) * timeScale;
+      this.vx += rand(-0.015, 0.015) * lateralDriftMult * (1 + this.overchargeRatio * 1.2) * timeScale;
     }
 
     const dragCfg = this.engine.config.PHYSICS?.shellAtmosphericDrag;
     if (dragCfg?.enabled) {
-      const altitudeNorm = Math.min(1, Math.max(0, (this.targetY - this.y) / this.launchDistanceY));
-      this.altitudeNorm = altitudeNorm;
+      const launchProgress = Math.min(1, Math.max(0, (this.startY - this.y) / this.launchDistanceY));
+      this.altitudeNorm = launchProgress;
       const apexWindowSpeed = Number.isFinite(dragCfg.apexWindowSpeed)
         ? Math.max(Number.EPSILON, dragCfg.apexWindowSpeed)
         : Number.EPSILON;
@@ -198,8 +215,9 @@ export class PooledFirework {
         : 1;
       const normalizedApexVelocity = clamp(Math.abs(this.vy) / apexWindowSpeed, 0, 1);
       const apexFactor = (1 - normalizedApexVelocity) * apexWindowMultiplier;
-      let dragStrength = dragCfg.base + (1 - altitudeNorm) * dragCfg.lowAltitudeBoost + apexFactor * dragCfg.apexBoost;
+      let dragStrength = dragCfg.base + (1 - launchProgress) * dragCfg.lowAltitudeBoost + apexFactor * dragCfg.apexBoost;
       if (this.isHeavy) dragStrength *= dragCfg.heavyMultiplier;
+      dragStrength *= dragMult;
       if (isDirty) dragStrength *= dragCfg.dirtyMultiplier;
       const damping = Math.max(dragCfg.minDamping, 1 - dragStrength * timeScale);
       this.vx *= damping;
