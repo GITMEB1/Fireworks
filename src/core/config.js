@@ -56,7 +56,8 @@ export const CONFIG = {
     overloadFade: 0.22,
     lowCadence: 2,
     highCadence: 1,
-    impactPulseMs: 180
+    impactPulseMs: 180,
+    intensitySmoothing: 0.2
   },
 
   PHYSICS: {
