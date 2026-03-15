@@ -25,15 +25,25 @@ export function createRuntimeVNext({ canvas, ctx, config, state }) {
     return fallback;
   };
 
-  const rendererAdapter = selectedMode === 'webgl2-prototype'
-    ? createWebGL2PrototypeRendererAdapter({
+  let rendererAdapter;
+  if (selectedMode === 'webgl2-prototype') {
+    try {
+      rendererAdapter = createWebGL2PrototypeRendererAdapter({
         canvas,
         config,
         state,
         activePointers: state.activePointers,
         fallbackFactory
-      })
-    : fallbackFactory(null);
+      });
+    } catch (error) {
+      const reason = error?.message
+        ? `webgl2-init-error:${String(error.message).slice(0, 96)}`
+        : 'webgl2-init-error:unknown';
+      rendererAdapter = fallbackFactory(reason);
+    }
+  } else {
+    rendererAdapter = fallbackFactory(null);
+  }
 
   return {
     events,
