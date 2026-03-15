@@ -6,10 +6,30 @@ export function createCanvas2DRendererAdapter({ canvas, ctx, config, state, acti
   const backgroundRenderer = createBackgroundRenderer({ canvas, ctx, config, state });
   const renderer = createRenderer({ ctx, backgroundRenderer, activePointers, config, state });
 
+  function render(now, engine, frame = {}) {
+    const shakeX = frame.shakeX || 0;
+    const shakeY = frame.shakeY || 0;
+    const useShake = shakeX !== 0 || shakeY !== 0;
+
+    if (useShake) {
+      ctx.save();
+      ctx.translate(shakeX, shakeY);
+    }
+
+    renderer.render(now, engine);
+
+    if (frame.flashIntensity > 0) {
+      ctx.fillStyle = `rgba(${frame.flashColor || '255,255,255'}, ${(frame.flashIntensity || 0) * 0.8})`;
+      ctx.fillRect(-state.width, -state.height, state.width * 3, state.height * 3);
+    }
+
+    if (useShake) ctx.restore();
+  }
+
   return createRendererAdapter({
     id: 'canvas2d-baseline',
     kind: 'canvas2d',
-    render: renderer.render,
+    render,
     resize: () => {
       backgroundRenderer.initStars();
       backgroundRenderer.rebuildBackgroundCache();
