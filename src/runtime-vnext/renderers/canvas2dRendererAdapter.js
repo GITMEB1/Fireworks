@@ -32,11 +32,21 @@ export function createCanvas2DRendererAdapter({ canvas, ctx, config, state, acti
     if (useShake) ctx.restore();
   }
 
+  function getDebugStats() {
+    return {
+      mode: 'canvas2d-baseline',
+      gpuInitialized: false,
+      canvasWidth: canvas.width,
+      canvasHeight: canvas.height
+    };
+  }
+
   return createRendererAdapter({
     id: 'canvas2d-baseline',
     kind: 'canvas2d',
     composeFrame,
     render,
+    getDebugStats,
     resize: () => {
       backgroundRenderer.initStars();
       backgroundRenderer.rebuildBackgroundCache();

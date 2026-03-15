@@ -75,6 +75,11 @@ function createDynamicBatch(initialFloats = 8192) {
 }
 
 export function createWebGL2TransientPipeline({ gl, state }) {
+  let lastStats = {
+    particleVertices: 0,
+    shockwaveVertices: 0,
+    fragmentVertices: 0
+  };
   const sceneProgram = createProgram(
     gl,
     `#version 300 es
@@ -246,9 +251,19 @@ export function createWebGL2TransientPipeline({ gl, state }) {
     appendShockwaves(engine, frame.shakeX || 0, frame.shakeY || 0);
     appendTargetFragments(engine, frame.shakeX || 0, frame.shakeY || 0);
 
+    lastStats = {
+      particleVertices: particleBatch.vertexCount,
+      shockwaveVertices: shockwaveBatch.vertexCount,
+      fragmentVertices: fragmentBatch.vertexCount
+    };
+
     drawBatch(particleBatch, gl.LINES, true);
     drawBatch(shockwaveBatch, gl.TRIANGLES, true);
     drawBatch(fragmentBatch, gl.TRIANGLES, false);
+  }
+
+  function getLastStats() {
+    return { ...lastStats };
   }
 
   function drawFlashOverlay(flashColor, flashIntensity) {
@@ -264,5 +279,5 @@ export function createWebGL2TransientPipeline({ gl, state }) {
     gl.drawArrays(gl.TRIANGLES, 0, 6);
   }
 
-  return { render, drawFlashOverlay };
+  return { render, drawFlashOverlay, getLastStats };
 }

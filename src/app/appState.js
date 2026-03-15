@@ -21,6 +21,7 @@ export function createAppState() {
     flashTimer: 0,
     flashColor: '255,255,255',
     overchargeCueTimer: 0,
-    objectiveRun: null
+    objectiveRun: null,
+    runtimeRendererDebug: null
   };
 }

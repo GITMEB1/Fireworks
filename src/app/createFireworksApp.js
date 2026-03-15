@@ -18,6 +18,8 @@ export function createFireworksApp({ canvas, hintEl, statusEl, configOverrides =
   const runtimeVNext = createRuntimeVNext({ canvas, ctx, config, state });
   canvas.dataset.rendererMode = runtimeVNext.mode;
   if (runtimeVNext.rendererAdapter?.fallbackReason) canvas.dataset.rendererFallbackReason = runtimeVNext.rendererAdapter.fallbackReason;
+  canvas.dataset.rendererPreferredMode = runtimeVNext.preferredMode;
+  canvas.dataset.rendererGpuInitialized = runtimeVNext.mode === 'webgl2-prototype' ? 'true' : 'false';
 
   const engine = createEngine({ config, palettes: PALETTES, state, audio, runtimeVNext });
   runtimeVNext.budgets.bindEngine(engine);
@@ -87,6 +89,14 @@ export function createFireworksApp({ canvas, hintEl, statusEl, configOverrides =
       : { dt, shakeX: 0, shakeY: 0, flashColor: state.flashColor, flashIntensity: 0 };
 
     renderer.render(now, engine, frame);
+    const rendererStats = renderer.getDebugStats ? renderer.getDebugStats() : null;
+    if (rendererStats) {
+      state.runtimeRendererDebug = rendererStats;
+      canvas.dataset.rendererGpuInitialized = rendererStats.gpuInitialized ? 'true' : 'false';
+      if (rendererStats.particleVertices != null) canvas.dataset.rendererParticleVertices = String(rendererStats.particleVertices);
+      if (rendererStats.shockwaveVertices != null) canvas.dataset.rendererShockwaveVertices = String(rendererStats.shockwaveVertices);
+      if (rendererStats.fragmentVertices != null) canvas.dataset.rendererFragmentVertices = String(rendererStats.fragmentVertices);
+    }
 
     maybeAutoLaunch(timeScale);
   }
