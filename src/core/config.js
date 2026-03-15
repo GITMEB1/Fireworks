@@ -9,7 +9,8 @@ export const CONFIG = {
     maxEmbers: 200,
     maxShockwaves: 15,
     maxFireworks: 25,
-    maxTargets: 24
+    maxTargets: 20,
+    maxTargetFragments: 48
   },
 
   autoLaunchMin: 60,
@@ -62,8 +63,8 @@ export const CONFIG = {
 
   OBJECTIVE: {
     enabled: true,
-    maxConcurrentTargets: 5,
-    spawnCooldownMs: 1400,
+    maxConcurrentTargets: 4,
+    spawnCooldownMs: 1520,
     spawnJitterMs: 480,
     targetLifetimeMs: 7600,
     maxPressure: 100,
@@ -103,7 +104,23 @@ export const CONFIG = {
     hitQualityGlanceThreshold: 0.32,
     scoreDirectHitBonus: 18,
     scoreCriticalFinishBonus: 45,
-    pressureRecoveryCriticalBonus: 4
+    pressureRecoveryCriticalBonus: 4,
+    targetFractureThreshold: 0.42,
+    targetShatterThreshold: 0.88,
+    targetCriticalShatterThreshold: 0.62,
+    targetShatterDirectBonus: 0.16,
+    targetShatterCriticalBonus: 0.2,
+    targetShatterBaseFragments: 3,
+    targetShatterPriorityFragments: 1,
+    targetShatterArmoredFragments: 2,
+    targetShatterMaxFragments: 7,
+    targetFragmentMaxConcurrent: 30,
+    targetFragmentLifetimeMs: 1450,
+    targetFragmentLifetimeJitterMs: 520,
+    targetFragmentDrag: 0.964,
+    targetFragmentGravityMult: 0.9,
+    targetFragmentSpinMax: 0.16,
+    scoreShatterBonus: 42
   },
 
   PHYSICS: {

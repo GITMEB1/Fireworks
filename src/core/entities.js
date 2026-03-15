@@ -1,4 +1,4 @@
-import { rand, rgba, weightedShellType } from './utils.js';
+import { clamp, rand, rgba, weightedShellType } from './utils.js';
 
 export class PooledGlow {
   init(x, y, color, radius, alpha, decay, rise = -0.02) {
@@ -277,6 +277,95 @@ export class PooledFirework {
 }
 
 
+export class PooledTargetFragment {
+  constructor(engine) {
+    this.engine = engine;
+  }
+  init(x, y, radius, color, velocity, sourceTarget) {
+    const objectiveCfg = this.engine.config.OBJECTIVE || {};
+    this.x = x;
+    this.y = y;
+    this.radius = Math.max(3, radius);
+    this.baseRadius = this.radius;
+    this.color = color;
+    this.vx = velocity.vx;
+    this.vy = velocity.vy;
+    this.rotation = rand(0, Math.PI * 2);
+    this.rotationSpeed = velocity.rotationSpeed;
+    this.alpha = 0.92;
+    this.ageMs = 0;
+    this.lifetimeMs = Math.max(400, (objectiveCfg.targetFragmentLifetimeMs || 1400) + rand(-1, 1) * (objectiveCfg.targetFragmentLifetimeJitterMs || 420));
+    this.drag = clamp(objectiveCfg.targetFragmentDrag || 0.964, 0.85, 0.995);
+    this.gravityMult = objectiveCfg.targetFragmentGravityMult || 0.9;
+    this.kind = sourceTarget?.kind || 'normal';
+    this.removalReason = null;
+  }
+  update(timeScale) {
+    const { state, config } = this.engine;
+    const dtMs = timeScale * 16.666;
+    this.ageMs += dtMs;
+
+    this.vx *= Math.pow(this.drag, timeScale);
+    this.vy *= Math.pow(this.drag, timeScale);
+    this.vy += config.gravity * this.gravityMult * timeScale;
+    this.x += this.vx * timeScale;
+    this.y += this.vy * timeScale;
+    this.rotation += this.rotationSpeed * timeScale;
+
+    const boundPad = this.radius * 0.55;
+    if (this.x < boundPad) {
+      this.x = boundPad;
+      this.vx = Math.abs(this.vx) * 0.54;
+    } else if (this.x > state.width - boundPad) {
+      this.x = state.width - boundPad;
+      this.vx = -Math.abs(this.vx) * 0.54;
+    }
+
+    if (this.y < boundPad) {
+      this.y = boundPad;
+      this.vy = Math.abs(this.vy) * 0.5;
+    } else if (this.y > state.height - boundPad) {
+      this.y = state.height - boundPad;
+      this.vy = -Math.abs(this.vy) * 0.42;
+      this.vx *= 0.9;
+    }
+
+    const lifeRatio = Math.max(0, 1 - this.ageMs / this.lifetimeMs);
+    this.alpha = clamp(0.14 + lifeRatio * 0.84, 0, 1);
+    this.radius = this.baseRadius * (0.82 + lifeRatio * 0.26);
+
+    if (this.ageMs >= this.lifetimeMs) {
+      this.removalReason = 'expired';
+      return true;
+    }
+
+    return false;
+  }
+  draw(ctx) {
+    ctx.save();
+    ctx.translate(this.x, this.y);
+    ctx.rotate(this.rotation);
+
+    ctx.fillStyle = `rgba(${this.color},${this.alpha})`;
+    ctx.beginPath();
+    ctx.moveTo(-this.radius * 0.9, -this.radius * 0.5);
+    ctx.lineTo(this.radius, -this.radius * 0.2);
+    ctx.lineTo(this.radius * 0.7, this.radius * 0.82);
+    ctx.lineTo(-this.radius * 0.6, this.radius * 0.7);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.strokeStyle = `rgba(255,255,255,${Math.min(0.42, this.alpha * 0.45)})`;
+    ctx.lineWidth = Math.max(0.8, this.radius * 0.12);
+    ctx.beginPath();
+    ctx.moveTo(-this.radius * 0.62, -this.radius * 0.25);
+    ctx.lineTo(this.radius * 0.58, this.radius * 0.2);
+    ctx.stroke();
+
+    ctx.restore();
+  }
+}
+
 export class PooledTarget {
   constructor(engine) {
     this.engine = engine;
@@ -307,13 +396,40 @@ export class PooledTarget {
     this.isUrgent = false;
     this.removalReason = null;
     this.lastImpactEventId = -1;
+
+    this.destructionState = 'intact';
+    this.fractureProgress = 0;
+    this.fractureTimerMs = 0;
+    this.pendingShatterMeta = null;
+    this.hasShattered = false;
   }
   updateStateFlags() {
     const objectiveCfg = this.engine.config.OBJECTIVE || {};
     const healthRatio = this.maxHealth > 0 ? this.health / this.maxHealth : 0;
     const lifeRatio = this.lifetimeMs > 0 ? (this.lifetimeMs - this.ageMs) / this.lifetimeMs : 0;
     this.isUrgent = lifeRatio <= (objectiveCfg.targetUrgentLifetimeRatio || 0.2);
+
+    if (this.destructionState === 'fracturing' || this.destructionState === 'shattered') {
+      this.healthState = 'critical';
+      return;
+    }
     this.healthState = healthRatio <= (objectiveCfg.targetCriticalHealthRatio || 0.35) ? 'critical' : (healthRatio < 0.8 ? 'damaged' : 'fresh');
+  }
+  beginFracture(hitMeta) {
+    if (this.destructionState === 'fracturing' || this.destructionState === 'shattered') return;
+    this.destructionState = 'fracturing';
+    this.fractureProgress = Math.max(this.fractureProgress, 0.64);
+    this.fractureTimerMs = 95;
+    this.pendingShatterMeta = hitMeta;
+    this.health = Math.max(0, this.health);
+  }
+  shatter(hitMeta) {
+    if (this.hasShattered) return;
+    this.hasShattered = true;
+    this.destructionState = 'shattered';
+    this.removalReason = 'shattered';
+    this.engine.spawnTargetFragments?.(this, hitMeta || this.pendingShatterMeta || {});
+    this.engine.onTargetShattered?.(this, hitMeta || this.pendingShatterMeta || {});
   }
   update(timeScale) {
     const { state, config } = this.engine;
@@ -347,16 +463,23 @@ export class PooledTarget {
       if (Math.abs(this.vy) < 0.1) this.vy = 0;
     }
 
+    if (this.fractureTimerMs > 0) {
+      this.fractureTimerMs = Math.max(0, this.fractureTimerMs - timeScale * 16.666);
+      this.fractureProgress = clamp(this.fractureProgress + timeScale * 0.04, 0, 1);
+      if (this.fractureTimerMs <= 0 && !this.hasShattered) {
+        this.shatter(this.pendingShatterMeta || {});
+      }
+    }
+
     this.updateStateFlags();
 
-    if (this.ageMs >= this.lifetimeMs && this.health > 0) {
+    if (this.ageMs >= this.lifetimeMs && this.health > 0 && this.destructionState !== 'shattered') {
       this.removalReason = 'expired';
       this.health = 0;
       return true;
     }
 
-    if (this.health <= 0) {
-      this.removalReason = this.removalReason || 'cleared';
+    if (this.destructionState === 'shattered') {
       return true;
     }
 
@@ -366,6 +489,7 @@ export class PooledTarget {
     const lifeRatio = this.lifetimeMs > 0 ? (this.lifetimeMs - this.ageMs) / this.lifetimeMs : 0;
     const urgentPulse = this.isUrgent ? (0.5 + 0.5 * Math.sin(this.ageMs * 0.018)) : 0;
     const ringAlpha = this.healthState === 'critical' ? 0.72 + urgentPulse * 0.18 : 0.48 + urgentPulse * 0.16;
+    const crackAlpha = Math.min(0.95, this.fractureProgress * 1.18);
 
     ctx.save();
     ctx.translate(this.x, this.y);
@@ -390,6 +514,20 @@ export class PooledTarget {
     ctx.arc(0, 0, this.radius * 0.92, 0, Math.PI * 2);
     ctx.stroke();
 
+    if (this.fractureProgress > 0.08) {
+      ctx.strokeStyle = `rgba(255,245,230,${0.32 + crackAlpha * 0.4})`;
+      ctx.lineWidth = Math.max(0.9, this.radius * 0.1);
+      ctx.beginPath();
+      ctx.moveTo(-this.radius * 0.58, -this.radius * 0.18);
+      ctx.lineTo(-this.radius * 0.16, this.radius * 0.1);
+      ctx.lineTo(this.radius * 0.18, this.radius * 0.02);
+      ctx.lineTo(this.radius * 0.58, this.radius * 0.34);
+      ctx.moveTo(-this.radius * 0.1, -this.radius * 0.6);
+      ctx.lineTo(this.radius * 0.1, -this.radius * 0.22);
+      ctx.lineTo(this.radius * 0.44, -this.radius * 0.05);
+      ctx.stroke();
+    }
+
     const lifeArcAlpha = this.isUrgent ? 0.95 : 0.42;
     ctx.strokeStyle = `rgba(255,220,130,${lifeArcAlpha})`;
     ctx.lineWidth = Math.max(1, this.radius * 0.16);
@@ -405,6 +543,7 @@ export class PooledTarget {
     ctx.restore();
   }
   onImpact(intensity, impactX, impactY, impactEventId = null) {
+    if (this.destructionState === 'shattered') return;
     if (impactEventId != null && this.lastImpactEventId === impactEventId) return;
     if (impactEventId != null) this.lastImpactEventId = impactEventId;
 
@@ -429,15 +568,39 @@ export class PooledTarget {
     this.vy -= impulse * 2;
     this.rotationSpeed += rand(-0.02, 0.02) * (1 + appliedIntensity);
 
-    this.updateStateFlags();
-    this.engine.onTargetDamaged?.(this, appliedIntensity, {
+    const healthRatio = this.maxHealth > 0 ? this.health / this.maxHealth : 0;
+    const fractureThreshold = objectiveCfg.targetFractureThreshold || 0.42;
+    const shatterThreshold = objectiveCfg.targetShatterThreshold || 0.88;
+    const criticalShatterThreshold = objectiveCfg.targetCriticalShatterThreshold || 0.62;
+    const shatterPower = appliedIntensity + (this.hitQuality === 'direct' ? (objectiveCfg.targetShatterDirectBonus || 0.14) : 0) + (this.healthState === 'critical' ? (objectiveCfg.targetShatterCriticalBonus || 0.18) : 0);
+
+    if (healthRatio < 0.82) {
+      this.fractureProgress = Math.max(this.fractureProgress, clamp(1 - healthRatio, 0, 0.82));
+      if (this.destructionState === 'intact') this.destructionState = healthRatio <= 0.45 ? 'critical' : 'damaged';
+    }
+
+    const hitMeta = {
       hitQuality: this.hitQuality,
       isUrgent: this.isUrgent,
-      wasCritical: this.healthState === 'critical'
-    });
+      wasCritical: this.healthState === 'critical',
+      shatterPower,
+      impactX,
+      impactY,
+      appliedIntensity
+    };
 
-    if (this.health <= 0) {
-      this.removalReason = 'cleared';
+    this.engine.onTargetDamaged?.(this, appliedIntensity, hitMeta);
+
+    const shouldImmediateShatter = shatterPower >= shatterThreshold || (this.health <= 0 && shatterPower >= criticalShatterThreshold);
+    const shouldFracture = this.health <= 0 || shatterPower >= fractureThreshold;
+
+    if (shouldImmediateShatter) {
+      this.shatter(hitMeta);
+      return;
+    }
+
+    if (shouldFracture) {
+      this.beginFracture(hitMeta);
     }
   }
 }
