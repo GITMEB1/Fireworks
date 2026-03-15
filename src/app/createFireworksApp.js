@@ -80,35 +80,13 @@ export function createFireworksApp({ canvas, hintEl, statusEl, configOverrides =
       }
     }
     
-    // Supernova Screen Shake
-    let shakeX = 0, shakeY = 0;
-    if (state.screenShakeTimer > 0) {
-      state.screenShakeTimer -= dt;
-      if (state.screenShakeTimer > 0) {
-        const intensity = (state.screenShakeTimer / 400); // 400ms max
-        shakeX = (Math.random() - 0.5) * 40 * intensity;
-        shakeY = (Math.random() - 0.5) * 40 * intensity;
-      } else {
-        state.screenShakeTimer = 0;
-      }
-    }
-
     engine.update(timeScale * state.timeDilation, now);
 
-    let flashIntensity = 0;
-    if (state.flashTimer > 0) {
-      state.flashTimer -= dt;
-      if (state.flashTimer > 0) flashIntensity = state.flashTimer / 100;
-      else state.flashTimer = 0;
-    }
+    const frame = renderer.composeFrame
+      ? renderer.composeFrame({ dt, now, state })
+      : { dt, shakeX: 0, shakeY: 0, flashColor: state.flashColor, flashIntensity: 0 };
 
-    renderer.render(now, engine, {
-      dt,
-      shakeX,
-      shakeY,
-      flashColor: state.flashColor,
-      flashIntensity
-    });
+    renderer.render(now, engine, frame);
 
     maybeAutoLaunch(timeScale);
   }
