@@ -75,6 +75,7 @@ function createDynamicBatch(initialFloats = 8192) {
 }
 
 export function createWebGL2TransientPipeline({ gl, state }) {
+  let disposed = false;
   let lastStats = {
     particleVertices: 0,
     shockwaveVertices: 0,
@@ -224,6 +225,7 @@ export function createWebGL2TransientPipeline({ gl, state }) {
   }
 
   function drawBatch(batch, mode, additive) {
+    if (disposed) return;
     const data = batch.view();
     if (!data.length) return;
     gl.useProgram(sceneProgram);
@@ -243,6 +245,7 @@ export function createWebGL2TransientPipeline({ gl, state }) {
   }
 
   function render(engine, frame) {
+    if (disposed) return;
     particleBatch.reset();
     shockwaveBatch.reset();
     fragmentBatch.reset();
@@ -267,6 +270,7 @@ export function createWebGL2TransientPipeline({ gl, state }) {
   }
 
   function drawFlashOverlay(flashColor, flashIntensity) {
+    if (disposed) return;
     if (flashIntensity <= 0) return;
     const [r, g, b] = colorToRgba(flashColor, flashIntensity * 0.8);
     gl.useProgram(flashProgram);
@@ -279,5 +283,14 @@ export function createWebGL2TransientPipeline({ gl, state }) {
     gl.drawArrays(gl.TRIANGLES, 0, 6);
   }
 
-  return { render, drawFlashOverlay, getLastStats };
+  function dispose() {
+    if (disposed) return;
+    disposed = true;
+    gl.deleteBuffer(sceneBuffer);
+    gl.deleteBuffer(flashBuffer);
+    gl.deleteProgram(sceneProgram);
+    gl.deleteProgram(flashProgram);
+  }
+
+  return { render, drawFlashOverlay, getLastStats, dispose };
 }

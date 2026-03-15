@@ -53,6 +53,7 @@ export function createWebGL2PrototypeRendererAdapter({ canvas, config, state, ac
     shockwaveVertices: 0,
     fragmentVertices: 0
   };
+  let disposed = false;
 
   const textureProgram = createProgram(
     gl,
@@ -110,6 +111,7 @@ export function createWebGL2PrototypeRendererAdapter({ canvas, config, state, ac
   }
 
   function drawOverlayTexture() {
+    if (disposed) return;
     gl.useProgram(textureProgram);
     gl.bindBuffer(gl.ARRAY_BUFFER, textureBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, fullscreen, gl.STATIC_DRAW);
@@ -125,6 +127,7 @@ export function createWebGL2PrototypeRendererAdapter({ canvas, config, state, ac
   }
 
   function drawOverlayCanvas(now, engine, frame) {
+    if (disposed) return;
     overlayCtx.setTransform(1, 0, 0, 1, 0, 0);
     overlayCtx.clearRect(0, 0, state.width, state.height);
     overlayCtx.save();
@@ -148,6 +151,7 @@ export function createWebGL2PrototypeRendererAdapter({ canvas, config, state, ac
   }
 
   function render(now, engine, frame = {}) {
+    if (disposed) return;
     if (!state.width || !state.height) return;
     syncOverlayCanvasSize();
 
@@ -169,9 +173,24 @@ export function createWebGL2PrototypeRendererAdapter({ canvas, config, state, ac
   }
 
   function resize() {
+    if (disposed) return;
     syncOverlayCanvasSize();
     backgroundRenderer.initStars();
     backgroundRenderer.rebuildBackgroundCache();
+  }
+
+  function dispose() {
+    if (disposed) return;
+    disposed = true;
+    transientPipeline.dispose?.();
+    gl.deleteBuffer(textureBuffer);
+    gl.deleteTexture(overlayTexture);
+    gl.deleteProgram(textureProgram);
+    lastRenderStats = {
+      ...lastRenderStats,
+      gpuInitialized: false,
+      disposed: true
+    };
   }
 
   return createRendererAdapter({
@@ -180,6 +199,7 @@ export function createWebGL2PrototypeRendererAdapter({ canvas, config, state, ac
     composeFrame,
     render,
     resize,
-    getDebugStats: () => ({ ...lastRenderStats })
+    dispose,
+    getDebugStats: () => ({ ...lastRenderStats, disposed })
   });
 }
