@@ -35,6 +35,10 @@ export const CONFIG = {
     }
   },
 
+
+  RENDERER: {
+    mode: 'canvas2d-baseline'
+  },
   QUALITY: {
     enabled: true,
     sampleSize: 30,
@@ -234,6 +238,7 @@ export function createConfig(overrides = {}) {
     LIMITS: { ...CONFIG.LIMITS, ...(overrides.LIMITS || {}) },
     CHARGE: { ...CONFIG.CHARGE, ...(overrides.CHARGE || {}) },
     QUALITY: { ...CONFIG.QUALITY, ...(overrides.QUALITY || {}) },
+    RENDERER: { ...CONFIG.RENDERER, ...(overrides.RENDERER || {}) },
     BLOOM: { ...CONFIG.BLOOM, ...(overrides.BLOOM || {}) },
     OBJECTIVE: { ...CONFIG.OBJECTIVE, ...(overrides.OBJECTIVE || {}) },
     PHYSICS: {

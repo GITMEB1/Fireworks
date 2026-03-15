@@ -16,6 +16,8 @@ export function createFireworksApp({ canvas, hintEl, statusEl, configOverrides =
   const state = createAppState();
   const audio = createAudioSystem();
   const runtimeVNext = createRuntimeVNext({ canvas, ctx, config, state });
+  canvas.dataset.rendererMode = runtimeVNext.mode;
+  if (runtimeVNext.rendererAdapter?.fallbackReason) canvas.dataset.rendererFallbackReason = runtimeVNext.rendererAdapter.fallbackReason;
 
   const engine = createEngine({ config, palettes: PALETTES, state, audio, runtimeVNext });
   runtimeVNext.budgets.bindEngine(engine);
@@ -91,29 +93,22 @@ export function createFireworksApp({ canvas, hintEl, statusEl, configOverrides =
       }
     }
 
-    if (shakeX !== 0 || shakeY !== 0) {
-      ctx.save();
-      ctx.translate(shakeX, shakeY);
-    }
-
     engine.update(timeScale * state.timeDilation, now);
-    renderer.render(now, engine);
 
-    // Supernova Color Flash
+    let flashIntensity = 0;
     if (state.flashTimer > 0) {
       state.flashTimer -= dt;
-      if (state.flashTimer > 0) {
-        const flashIntensity = state.flashTimer / 100; // 100ms max
-        ctx.fillStyle = `rgba(${state.flashColor}, ${flashIntensity * 0.8})`;
-        ctx.fillRect(-state.width, -state.height, state.width * 3, state.height * 3);
-      } else {
-        state.flashTimer = 0;
-      }
+      if (state.flashTimer > 0) flashIntensity = state.flashTimer / 100;
+      else state.flashTimer = 0;
     }
 
-    if (shakeX !== 0 || shakeY !== 0) {
-      ctx.restore();
-    }
+    renderer.render(now, engine, {
+      dt,
+      shakeX,
+      shakeY,
+      flashColor: state.flashColor,
+      flashIntensity
+    });
 
     maybeAutoLaunch(timeScale);
   }
