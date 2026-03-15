@@ -241,20 +241,25 @@ export function createEngine({ config, palettes, state, audio, runtimeVNext = nu
   function spawnTargetFragments(target, hitMeta = {}) {
     const objectiveCfg = config.OBJECTIVE || {};
     const qualityScale = clamp(state.qualityScale, 0.55, 1);
+    const fragmentQualityMult = state.reducedMotion
+      ? 0.58
+      : (qualityScale < 0.62 ? 0.62 : (qualityScale < 0.74 ? 0.76 : (qualityScale < 0.86 ? 0.9 : 1)));
     const fragmentBudget = Math.min(
       config.LIMITS.maxTargetFragments,
-      Math.max(8, Math.floor((objectiveCfg.targetFragmentMaxConcurrent || 30) * qualityScale))
+      Math.max(6, Math.floor((objectiveCfg.targetFragmentMaxConcurrent || 24) * fragmentQualityMult))
     );
     const remaining = Math.max(0, fragmentBudget - activeCounts.targetFragments);
     if (remaining <= 0) return;
 
-    const baseCount = objectiveCfg.targetShatterBaseFragments || 3;
+    const baseCount = objectiveCfg.targetShatterBaseFragments || 2;
     const typeBonus = target.kind === 'armored'
-      ? (objectiveCfg.targetShatterArmoredFragments || 2)
+      ? (objectiveCfg.targetShatterArmoredFragments || 1)
       : (target.kind === 'priority' ? (objectiveCfg.targetShatterPriorityFragments || 1) : 0);
-    const powerBonus = Math.max(0, Math.floor((hitMeta.shatterPower || 0) * 2.5));
-    const maxCount = objectiveCfg.targetShatterMaxFragments || 7;
-    const desired = clamp(baseCount + typeBonus + powerBonus, 2, maxCount);
+    const powerScale = state.reducedMotion ? 1.7 : (fragmentQualityMult < 0.76 ? 1.9 : 2.3);
+    const powerBonus = Math.max(0, Math.floor((hitMeta.shatterPower || 0) * powerScale));
+    const maxCount = objectiveCfg.targetShatterMaxFragments || 6;
+    const minCount = fragmentQualityMult < 0.7 ? 1 : 2;
+    const desired = clamp(Math.round((baseCount + typeBonus + powerBonus) * fragmentQualityMult), minCount, maxCount);
     const count = Math.min(remaining, desired);
     const budget = requestBudget('targetFragments', count, fragmentBudget, activeCounts.targetFragments);
     const allowedCount = budget.allowed;
@@ -268,13 +273,13 @@ export function createEngine({ config, palettes, state, audio, runtimeVNext = nu
 
     for (let i = 0; i < allowedCount && activeCounts.targetFragments < config.LIMITS.maxTargetFragments; i++) {
       const t = (i / Math.max(1, count - 1)) - 0.5;
-      const spreadX = -ny * t * rand(0.8, 1.9);
-      const spreadY = nx * t * rand(0.8, 1.9);
-      const launch = 1.2 + (hitMeta.shatterPower || 0) * rand(1.2, 2.2);
+      const spreadX = -ny * t * rand(0.8, 1.9) * fragmentQualityMult;
+      const spreadY = nx * t * rand(0.8, 1.9) * fragmentQualityMult;
+      const launch = (1.1 + (hitMeta.shatterPower || 0) * rand(1.05, 1.95)) * (0.86 + fragmentQualityMult * 0.18);
       const velocity = {
-        vx: target.vx * 0.35 + (nx + spreadX) * launch + rand(-0.5, 0.5),
-        vy: target.vy * 0.28 + (ny + spreadY) * launch - rand(0.2, 1.0),
-        rotationSpeed: rand(-1, 1) * (objectiveCfg.targetFragmentSpinMax || 0.14)
+        vx: target.vx * 0.32 + (nx + spreadX) * launch + rand(-0.45, 0.45) * fragmentQualityMult,
+        vy: target.vy * 0.26 + (ny + spreadY) * launch - rand(0.16, 0.9) * fragmentQualityMult,
+        rotationSpeed: rand(-1, 1) * (objectiveCfg.targetFragmentSpinMax || 0.14) * (0.82 + fragmentQualityMult * 0.18)
       };
 
       const radius = target.radius * rand(0.28, 0.46) * (1 + (target.kind === 'armored' ? 0.12 : 0));
@@ -293,7 +298,8 @@ export function createEngine({ config, palettes, state, audio, runtimeVNext = nu
       requested: count,
       spawned: allowedCount,
       activeTargetFragments: activeCounts.targetFragments,
-      shatterPower: hitMeta.shatterPower || 0
+      shatterPower: hitMeta.shatterPower || 0,
+      fragmentQualityMult
     });
   }
 
@@ -302,7 +308,7 @@ export function createEngine({ config, palettes, state, audio, runtimeVNext = nu
     if (!run || run.status !== 'running') return;
     run.score += Math.max(1, Math.round(config.OBJECTIVE.scorePerHit * intensity));
     if (hitMeta.hitQuality === 'direct') run.score += config.OBJECTIVE.scoreDirectHitBonus;
-    if (hitMeta.hitQuality === 'glancing') run.score = Math.max(0, run.score - Math.floor(config.OBJECTIVE.scoreDirectHitBonus * 0.35));
+    if (hitMeta.hitQuality === 'glancing') run.score = Math.max(0, run.score - Math.floor(config.OBJECTIVE.scoreDirectHitBonus * 0.25));
 
     const destructState = target.destructionState;
     if (destructState === 'fracturing') {
@@ -342,7 +348,9 @@ export function createEngine({ config, palettes, state, audio, runtimeVNext = nu
     const comboMult = 1 + (run.combo - 1) * config.OBJECTIVE.comboBonusPerStep;
     const perfectBonus = run.lastShotType === 'supernova' ? config.OBJECTIVE.scorePerfectBonus : 0;
     const criticalFinishBonus = hitMeta.wasCritical ? config.OBJECTIVE.scoreCriticalFinishBonus : 0;
-    const shatterBonus = config.OBJECTIVE.scoreShatterBonus || 0;
+    const shatterBonusBase = config.OBJECTIVE.scoreShatterBonus || 0;
+    const shatterQualityMult = hitMeta.hitQuality === 'direct' ? 1 : (hitMeta.hitQuality === 'glancing' ? 0.72 : 0.86);
+    const shatterBonus = Math.round(shatterBonusBase * shatterQualityMult);
     run.score += Math.round((config.OBJECTIVE.scorePerClear + perfectBonus + criticalFinishBonus + shatterBonus) * comboMult);
 
     run.phaseClears += 1;
