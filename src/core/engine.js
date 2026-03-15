@@ -1,12 +1,12 @@
-import { PooledGlow, PooledSmoke, PooledEmber, PooledShockwave, PooledParticle, PooledFirework, PooledTarget } from './entities.js';
+import { PooledGlow, PooledSmoke, PooledEmber, PooledShockwave, PooledParticle, PooledFirework, PooledTarget, PooledTargetFragment } from './entities.js';
 import { clamp, pick, rand, DEATH_CROSSETTE, DEATH_CRACKLE, DEATH_DOUBLE_BREAK, DEATH_GHOST, DEATH_NONE } from './utils.js';
 import { createShellRegistry } from '../shells/registry.js';
 import { createLaunchPatternRunner } from '../patterns/launchPatterns.js';
 import { createDeathBehaviorDispatcher } from '../effects/deathBehaviors.js';
 
 export function createEngine({ config, palettes, state, audio }) {
-  const pools = { fireworks: [], particles: [], smokes: [], glows: [], embers: [], shockwaves: [], targets: [] };
-  const activeCounts = { fireworks: 0, particles: 0, smokes: 0, glows: 0, embers: 0, shockwaves: 0, targets: 0 };
+  const pools = { fireworks: [], particles: [], smokes: [], glows: [], embers: [], shockwaves: [], targets: [], targetFragments: [] };
+  const activeCounts = { fireworks: 0, particles: 0, smokes: 0, glows: 0, embers: 0, shockwaves: 0, targets: 0, targetFragments: 0 };
 
   const engine = {
     config,
@@ -37,6 +37,8 @@ export function createEngine({ config, palettes, state, audio }) {
     triggerSupernova,
     registerShot,
     onTargetDamaged,
+    onTargetShattered,
+    spawnTargetFragments,
     resetObjectiveRun,
     isFever,
     createExplosion: null,
@@ -86,6 +88,7 @@ export function createEngine({ config, palettes, state, audio }) {
     state.scheduledLaunches = [];
     state.activePointers.clear();
     activeCounts.targets = 0;
+    activeCounts.targetFragments = 0;
   }
 
   if (!state.objectiveRun) resetObjectiveRun();
@@ -110,6 +113,7 @@ export function createEngine({ config, palettes, state, audio }) {
     for (let i = pools.embers.length; i < LIMITS.maxEmbers; i++) pools.embers.push(new PooledEmber());
     for (let i = pools.shockwaves.length; i < LIMITS.maxShockwaves; i++) pools.shockwaves.push(new PooledShockwave());
     for (let i = pools.targets.length; i < LIMITS.maxTargets; i++) pools.targets.push(new PooledTarget(engine));
+    for (let i = pools.targetFragments.length; i < LIMITS.maxTargetFragments; i++) pools.targetFragments.push(new PooledTargetFragment(engine));
   }
 
   function spawnParticle(x, y, color, cfg) {
@@ -195,6 +199,54 @@ export function createEngine({ config, palettes, state, audio }) {
     pools.targets[activeCounts.targets++].init(x, y, radius, mass, targetColor, objectiveProfile);
   }
 
+  function spawnTargetFragments(target, hitMeta = {}) {
+    const objectiveCfg = config.OBJECTIVE || {};
+    const qualityScale = clamp(state.qualityScale, 0.55, 1);
+    const fragmentBudget = Math.min(
+      config.LIMITS.maxTargetFragments,
+      Math.max(8, Math.floor((objectiveCfg.targetFragmentMaxConcurrent || 30) * qualityScale))
+    );
+    const remaining = Math.max(0, fragmentBudget - activeCounts.targetFragments);
+    if (remaining <= 0) return;
+
+    const baseCount = objectiveCfg.targetShatterBaseFragments || 3;
+    const typeBonus = target.kind === 'armored'
+      ? (objectiveCfg.targetShatterArmoredFragments || 2)
+      : (target.kind === 'priority' ? (objectiveCfg.targetShatterPriorityFragments || 1) : 0);
+    const powerBonus = Math.max(0, Math.floor((hitMeta.shatterPower || 0) * 2.5));
+    const maxCount = objectiveCfg.targetShatterMaxFragments || 7;
+    const desired = clamp(baseCount + typeBonus + powerBonus, 2, maxCount);
+    const count = Math.min(remaining, desired);
+
+    const impactDx = target.x - (hitMeta.impactX ?? target.x);
+    const impactDy = target.y - (hitMeta.impactY ?? target.y);
+    const impactLen = Math.max(0.0001, Math.hypot(impactDx, impactDy));
+    const nx = impactDx / impactLen;
+    const ny = impactDy / impactLen;
+
+    for (let i = 0; i < count && activeCounts.targetFragments < config.LIMITS.maxTargetFragments; i++) {
+      const t = (i / Math.max(1, count - 1)) - 0.5;
+      const spreadX = -ny * t * rand(0.8, 1.9);
+      const spreadY = nx * t * rand(0.8, 1.9);
+      const launch = 1.2 + (hitMeta.shatterPower || 0) * rand(1.2, 2.2);
+      const velocity = {
+        vx: target.vx * 0.35 + (nx + spreadX) * launch + rand(-0.5, 0.5),
+        vy: target.vy * 0.28 + (ny + spreadY) * launch - rand(0.2, 1.0),
+        rotationSpeed: rand(-1, 1) * (objectiveCfg.targetFragmentSpinMax || 0.14)
+      };
+
+      const radius = target.radius * rand(0.28, 0.46) * (1 + (target.kind === 'armored' ? 0.12 : 0));
+      pools.targetFragments[activeCounts.targetFragments++].init(
+        target.x + rand(-target.radius * 0.25, target.radius * 0.25),
+        target.y + rand(-target.radius * 0.25, target.radius * 0.25),
+        radius,
+        target.color,
+        velocity,
+        target
+      );
+    }
+  }
+
   function onTargetDamaged(target, intensity, hitMeta = {}) {
     const run = state.objectiveRun;
     if (!run || run.status !== 'running') return;
@@ -202,30 +254,42 @@ export function createEngine({ config, palettes, state, audio }) {
     if (hitMeta.hitQuality === 'direct') run.score += config.OBJECTIVE.scoreDirectHitBonus;
     if (hitMeta.hitQuality === 'glancing') run.score = Math.max(0, run.score - Math.floor(config.OBJECTIVE.scoreDirectHitBonus * 0.35));
 
-    if (target.health <= 0) {
-      if (run.comboTimerMs > 0) {
-        run.combo = Math.min(config.OBJECTIVE.comboMax, run.combo + 1);
-      } else {
-        run.combo = 1;
-      }
-      run.comboTimerMs = config.OBJECTIVE.comboWindowMs;
-
-      const comboMult = 1 + (run.combo - 1) * config.OBJECTIVE.comboBonusPerStep;
-      const perfectBonus = run.lastShotType === 'supernova' ? config.OBJECTIVE.scorePerfectBonus : 0;
-      const criticalFinishBonus = hitMeta.wasCritical ? config.OBJECTIVE.scoreCriticalFinishBonus : 0;
-      run.score += Math.round((config.OBJECTIVE.scorePerClear + perfectBonus + criticalFinishBonus) * comboMult);
-      run.phaseClears += 1;
-      run.totalClears += 1;
-      const recovery = run.lastShotType === 'supernova' ? config.OBJECTIVE.pressureRecoveryOnPerfect : config.OBJECTIVE.pressureRecoveryOnClear;
-      const criticalRecovery = hitMeta.wasCritical ? config.OBJECTIVE.pressureRecoveryCriticalBonus : 0;
-      run.pressure = clamp(run.pressure - recovery - criticalRecovery, 0, config.OBJECTIVE.maxPressure);
-
-      run.lastHitFeedback = hitMeta.hitQuality === 'direct' ? 'Direct hit clear' : (hitMeta.hitQuality === 'glancing' ? 'Glancing clear' : 'Target cleared');
-      run.lastHitFeedbackTimerMs = 900;
-    } else {
-      run.lastHitFeedback = hitMeta.hitQuality === 'direct' ? 'Direct hit' : (hitMeta.hitQuality === 'glancing' ? 'Glancing hit' : 'Hit confirmed');
-      run.lastHitFeedbackTimerMs = 520;
+    const destructState = target.destructionState;
+    if (destructState === 'fracturing') {
+      run.lastHitFeedback = hitMeta.hitQuality === 'direct' ? 'Target fracturing' : 'Crack spreading';
+      run.lastHitFeedbackTimerMs = 600;
+      return;
     }
+
+    run.lastHitFeedback = hitMeta.hitQuality === 'direct' ? 'Direct hit' : (hitMeta.hitQuality === 'glancing' ? 'Glancing hit' : 'Hit confirmed');
+    run.lastHitFeedbackTimerMs = 520;
+  }
+
+  function onTargetShattered(target, hitMeta = {}) {
+    const run = state.objectiveRun;
+    if (!run || run.status !== 'running') return;
+
+    if (run.comboTimerMs > 0) {
+      run.combo = Math.min(config.OBJECTIVE.comboMax, run.combo + 1);
+    } else {
+      run.combo = 1;
+    }
+    run.comboTimerMs = config.OBJECTIVE.comboWindowMs;
+
+    const comboMult = 1 + (run.combo - 1) * config.OBJECTIVE.comboBonusPerStep;
+    const perfectBonus = run.lastShotType === 'supernova' ? config.OBJECTIVE.scorePerfectBonus : 0;
+    const criticalFinishBonus = hitMeta.wasCritical ? config.OBJECTIVE.scoreCriticalFinishBonus : 0;
+    const shatterBonus = config.OBJECTIVE.scoreShatterBonus || 0;
+    run.score += Math.round((config.OBJECTIVE.scorePerClear + perfectBonus + criticalFinishBonus + shatterBonus) * comboMult);
+
+    run.phaseClears += 1;
+    run.totalClears += 1;
+    const recovery = run.lastShotType === 'supernova' ? config.OBJECTIVE.pressureRecoveryOnPerfect : config.OBJECTIVE.pressureRecoveryOnClear;
+    const criticalRecovery = hitMeta.wasCritical ? config.OBJECTIVE.pressureRecoveryCriticalBonus : 0;
+    run.pressure = clamp(run.pressure - recovery - criticalRecovery, 0, config.OBJECTIVE.maxPressure);
+
+    run.lastHitFeedback = hitMeta.hitQuality === 'direct' ? 'Direct shatter' : 'Target shattered';
+    run.lastHitFeedbackTimerMs = 960;
   }
 
   function queueLaunch(delayMs, tx, ty, type = null, palette = null, startX = null, charge = 0, prestige = false, outcomeMeta = null) {
@@ -446,6 +510,7 @@ export function createEngine({ config, palettes, state, audio }) {
     compactAndUpdate('embers', timeScale);
     compactAndUpdate('shockwaves', timeScale);
     compactAndUpdate('targets', timeScale);
+    compactAndUpdate('targetFragments', timeScale);
   }
 
   return engine;
