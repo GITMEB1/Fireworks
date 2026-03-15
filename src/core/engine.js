@@ -3,8 +3,9 @@ import { clamp, pick, rand, DEATH_CROSSETTE, DEATH_CRACKLE, DEATH_DOUBLE_BREAK, 
 import { createShellRegistry } from '../shells/registry.js';
 import { createLaunchPatternRunner } from '../patterns/launchPatterns.js';
 import { createDeathBehaviorDispatcher } from '../effects/deathBehaviors.js';
+import { RUNTIME_EVENT_TYPES } from '../runtime-vnext/contracts/runtimeEventTypes.js';
 
-export function createEngine({ config, palettes, state, audio }) {
+export function createEngine({ config, palettes, state, audio, runtimeVNext = null }) {
   const pools = { fireworks: [], particles: [], smokes: [], glows: [], embers: [], shockwaves: [], targets: [], targetFragments: [] };
   const activeCounts = { fireworks: 0, particles: 0, smokes: 0, glows: 0, embers: 0, shockwaves: 0, targets: 0, targetFragments: 0 };
 
@@ -49,8 +50,38 @@ export function createEngine({ config, palettes, state, audio }) {
     explosionEventId: 0
   };
 
+  const runtimeEvents = runtimeVNext?.events;
+  const runtimeBudgets = runtimeVNext?.budgets;
+
+  function emitRuntime(type, payload) {
+    runtimeEvents?.emit(type, payload);
+  }
+
+  function requestBudget(channel, requested, hardLimit, current) {
+    if (!runtimeBudgets) {
+      const allowed = Math.max(0, Math.min(requested, hardLimit - current));
+      return { allowed, denied: requested - allowed, hardLimit };
+    }
+    return runtimeBudgets.request({ channel, requested, hardLimit, current });
+  }
+
   const shellRegistry = createShellRegistry(engine);
-  engine.createExplosion = shellRegistry.createExplosion;
+  const createExplosionRaw = shellRegistry.createExplosion;
+  engine.createExplosion = (x, y, type, palette, charge = 0, prestige = false) => {
+    const eventId = ++engine.explosionEventId;
+    emitRuntime(RUNTIME_EVENT_TYPES.explosionRequested, { eventId, x, y, type, charge, prestige });
+    createExplosionRaw(x, y, type, palette, charge, prestige);
+    emitRuntime(RUNTIME_EVENT_TYPES.explosionResolved, {
+      eventId,
+      x,
+      y,
+      type,
+      charge,
+      prestige,
+      activeParticles: activeCounts.particles,
+      activeShockwaves: activeCounts.shockwaves
+    });
+  };
   engine.dispatchDeathBehavior = createDeathBehaviorDispatcher(engine);
   engine.launchPattern = createLaunchPatternRunner(engine);
 
@@ -117,8 +148,11 @@ export function createEngine({ config, palettes, state, audio }) {
   }
 
   function spawnParticle(x, y, color, cfg) {
-    const limit = Math.floor(config.LIMITS.maxParticles * state.qualityScale);
-    if (activeCounts.particles >= limit) return;
+    const limit = runtimeBudgets
+      ? runtimeBudgets.getQualityScaledLimit(config.LIMITS.maxParticles)
+      : Math.floor(config.LIMITS.maxParticles * state.qualityScale);
+    const budget = requestBudget('particles', 1, limit, activeCounts.particles);
+    if (budget.allowed < 1) return;
     pools.particles[activeCounts.particles++].init(x, y, color, cfg);
   }
   function spawnGlow(x, y, color, radius = 80, alpha = 0.16, decay = 0.018, rise = -0.02) {
@@ -140,9 +174,13 @@ export function createEngine({ config, palettes, state, audio }) {
     }
   }
   function spawnShockwave(x, y, color, charge = 0) {
-    const limit = Math.floor(config.LIMITS.maxShockwaves * state.qualityScale);
-    if (activeCounts.shockwaves >= limit) return;
+    const limit = runtimeBudgets
+      ? runtimeBudgets.getQualityScaledLimit(config.LIMITS.maxShockwaves)
+      : Math.floor(config.LIMITS.maxShockwaves * state.qualityScale);
+    const budget = requestBudget('shockwaves', 1, limit, activeCounts.shockwaves);
+    if (budget.allowed < 1) return;
     pools.shockwaves[activeCounts.shockwaves++].init(x, y, color, charge);
+    emitRuntime(RUNTIME_EVENT_TYPES.shockwaveSpawned, { x, y, color, charge, activeShockwaves: activeCounts.shockwaves });
   }
   function spawnShellTo(tx, ty, type, palette, startX = null, charge = 0, prestige = false, outcomeMeta = null) {
     const limit = Math.floor(config.LIMITS.maxFireworks * clamp(state.qualityScale + 0.2, 0.6, 1.2));
@@ -156,6 +194,7 @@ export function createEngine({ config, palettes, state, audio }) {
     const pCfg = engine.pCfg;
     pCfg.isFlash = true; pCfg.size = size; pCfg.alpha = alpha; pCfg.decay = 0.08; pCfg.velocity = 0;
     spawnParticle(x, y, color, pCfg);
+    emitRuntime(RUNTIME_EVENT_TYPES.flashTriggered, { x, y, color, size, alpha });
   }
   function spawnAscentSpark(x, y, color, vx, vy, type, charge = 0, prestige = false) {
     const heavy = ['willow', 'brocade', 'palm'].includes(type) || charge > 0.5 || prestige;
@@ -217,6 +256,9 @@ export function createEngine({ config, palettes, state, audio }) {
     const maxCount = objectiveCfg.targetShatterMaxFragments || 7;
     const desired = clamp(baseCount + typeBonus + powerBonus, 2, maxCount);
     const count = Math.min(remaining, desired);
+    const budget = requestBudget('targetFragments', count, fragmentBudget, activeCounts.targetFragments);
+    const allowedCount = budget.allowed;
+    if (allowedCount <= 0) return;
 
     const impactDx = target.x - (hitMeta.impactX ?? target.x);
     const impactDy = target.y - (hitMeta.impactY ?? target.y);
@@ -224,7 +266,7 @@ export function createEngine({ config, palettes, state, audio }) {
     const nx = impactDx / impactLen;
     const ny = impactDy / impactLen;
 
-    for (let i = 0; i < count && activeCounts.targetFragments < config.LIMITS.maxTargetFragments; i++) {
+    for (let i = 0; i < allowedCount && activeCounts.targetFragments < config.LIMITS.maxTargetFragments; i++) {
       const t = (i / Math.max(1, count - 1)) - 0.5;
       const spreadX = -ny * t * rand(0.8, 1.9);
       const spreadY = nx * t * rand(0.8, 1.9);
@@ -245,6 +287,14 @@ export function createEngine({ config, palettes, state, audio }) {
         target
       );
     }
+
+    emitRuntime(RUNTIME_EVENT_TYPES.targetFragmentsSpawned, {
+      targetKind: target.kind,
+      requested: count,
+      spawned: allowedCount,
+      activeTargetFragments: activeCounts.targetFragments,
+      shatterPower: hitMeta.shatterPower || 0
+    });
   }
 
   function onTargetDamaged(target, intensity, hitMeta = {}) {
@@ -258,11 +308,24 @@ export function createEngine({ config, palettes, state, audio }) {
     if (destructState === 'fracturing') {
       run.lastHitFeedback = hitMeta.hitQuality === 'direct' ? 'Target fracturing' : 'Crack spreading';
       run.lastHitFeedbackTimerMs = 600;
+      emitRuntime(RUNTIME_EVENT_TYPES.targetDamaged, {
+        targetKind: target.kind,
+        intensity,
+        hitQuality: hitMeta.hitQuality || 'unknown',
+        destructionState: destructState
+      });
       return;
     }
 
     run.lastHitFeedback = hitMeta.hitQuality === 'direct' ? 'Direct hit' : (hitMeta.hitQuality === 'glancing' ? 'Glancing hit' : 'Hit confirmed');
     run.lastHitFeedbackTimerMs = 520;
+
+    emitRuntime(RUNTIME_EVENT_TYPES.targetDamaged, {
+      targetKind: target.kind,
+      intensity,
+      hitQuality: hitMeta.hitQuality || 'unknown',
+      destructionState: target.destructionState
+    });
   }
 
   function onTargetShattered(target, hitMeta = {}) {
@@ -290,6 +353,14 @@ export function createEngine({ config, palettes, state, audio }) {
 
     run.lastHitFeedback = hitMeta.hitQuality === 'direct' ? 'Direct shatter' : 'Target shattered';
     run.lastHitFeedbackTimerMs = 960;
+
+    emitRuntime(RUNTIME_EVENT_TYPES.targetShattered, {
+      targetKind: target.kind,
+      hitQuality: hitMeta.hitQuality || 'unknown',
+      wasCritical: !!hitMeta.wasCritical,
+      combo: run.combo,
+      score: run.score
+    });
   }
 
   function queueLaunch(delayMs, tx, ty, type = null, palette = null, startX = null, charge = 0, prestige = false, outcomeMeta = null) {

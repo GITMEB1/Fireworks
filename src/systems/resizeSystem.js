@@ -1,4 +1,4 @@
-export function createResizeSystem({ canvas, ctx, state, backgroundRenderer }) {
+export function createResizeSystem({ canvas, ctx, state, backgroundRenderer = null, rendererAdapter = null }) {
   function resize() {
     const newW = window.innerWidth;
     const newH = window.innerHeight;
@@ -17,8 +17,13 @@ export function createResizeSystem({ canvas, ctx, state, backgroundRenderer }) {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.scale(state.dpr, state.dpr);
 
-    backgroundRenderer.initStars();
-    backgroundRenderer.rebuildBackgroundCache();
+    if (rendererAdapter?.resize) {
+      rendererAdapter.resize();
+      return;
+    }
+
+    backgroundRenderer?.initStars?.();
+    backgroundRenderer?.rebuildBackgroundCache?.();
   }
 
   return { resize };
