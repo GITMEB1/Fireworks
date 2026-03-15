@@ -7,12 +7,14 @@ export function createCanvas2DRendererAdapter({ canvas, ctx, config, state, acti
   const backgroundRenderer = createBackgroundRenderer({ canvas, ctx, config, state });
   const renderer = createRenderer({ ctx, backgroundRenderer, activePointers, config, state });
   const frameController = createFrameCompositionController({ state });
+  let disposed = false;
 
   function composeFrame({ dt }) {
     return frameController.compose(dt);
   }
 
   function render(now, engine, frame = {}) {
+    if (disposed) return;
     const shakeX = frame.shakeX || 0;
     const shakeY = frame.shakeY || 0;
     const useShake = shakeX !== 0 || shakeY !== 0;
@@ -37,8 +39,13 @@ export function createCanvas2DRendererAdapter({ canvas, ctx, config, state, acti
       mode: 'canvas2d-baseline',
       gpuInitialized: false,
       canvasWidth: canvas.width,
-      canvasHeight: canvas.height
+      canvasHeight: canvas.height,
+      disposed
     };
+  }
+
+  function dispose() {
+    disposed = true;
   }
 
   return createRendererAdapter({
@@ -46,6 +53,7 @@ export function createCanvas2DRendererAdapter({ canvas, ctx, config, state, acti
     kind: 'canvas2d',
     composeFrame,
     render,
+    dispose,
     getDebugStats,
     resize: () => {
       backgroundRenderer.initStars();

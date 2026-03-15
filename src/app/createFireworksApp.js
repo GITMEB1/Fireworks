@@ -114,6 +114,7 @@ export function createFireworksApp({ canvas, hintEl, statusEl, configOverrides =
     if (state.frameHandle) cancelAnimationFrame(state.frameHandle);
     document.removeEventListener('visibilitychange', onVisibilityChange);
     window.removeEventListener('resize', resizeSystem.resize);
+    if (renderer.dispose) renderer.dispose();
     unbindMotion();
   }
 
