@@ -44,11 +44,17 @@ This keeps the prototype vertical and player-visible while avoiding a risky full
 - Default remains `canvas2d-baseline`.
 - GPU lane selected with `?renderer=webgl2` or `?renderer=webgl2-prototype`.
 - If WebGL2 or overlay setup fails, adapter falls back to Canvas2D and records `fallbackReason`.
+- App canvas datasets now expose preferred mode, active mode, GPU initialization state, and transient vertex counters for quick runtime inspection.
 
 ## Composition ownership changes
 - App loop no longer computes screen shake and flash intensity directly for rendering.
 - Renderer adapter now owns frame composition derivation via `composeFrame(...)`.
 - This begins closing the Phase 0 composition leak and makes renderer swapping cleaner.
+
+## Basic evaluation hooks added
+- `renderer.getDebugStats()` is now part of adapter behavior for lightweight diagnostics.
+- WebGL2 prototype reports per-frame transient vertex counts (`particleVertices`, `shockwaveVertices`, `fragmentVertices`).
+- App writes renderer diagnostics to `state.runtimeRendererDebug` and mirrored `canvas.dataset` attributes for no-tooling visibility.
 
 ## Intentionally deferred
 - Full render port (targets, embers, shell sprites, UI overlays entirely in GPU).
@@ -61,6 +67,7 @@ This keeps the prototype vertical and player-visible while avoiding a risky full
 - Startup smoke with dev server.
 - Browser validation that both Canvas2D baseline and WebGL2 prototype modes load.
 - Visual confirmation screenshot from WebGL2 mode.
+- Runtime inspection via `canvas.dataset` and renderer debug stats to verify mode, initialization, fallback behavior, and transient activity counters.
 
 ## EVAL_GATES decision
 - **Gate A (value):** pass for prototype; player-visible GPU slice in live gameplay.

@@ -44,6 +44,15 @@ export function createWebGL2PrototypeRendererAdapter({ canvas, config, state, ac
   const frameController = createFrameCompositionController({ state });
   const backgroundRenderer = createBackgroundRenderer({ canvas: overlayCanvas, ctx: overlayCtx, config, state });
   const transientPipeline = createWebGL2TransientPipeline({ gl, state, config });
+  let lastRenderStats = {
+    mode: 'webgl2-prototype',
+    gpuInitialized: true,
+    overlayWidth: 0,
+    overlayHeight: 0,
+    particleVertices: 0,
+    shockwaveVertices: 0,
+    fragmentVertices: 0
+  };
 
   const textureProgram = createProgram(
     gl,
@@ -149,6 +158,13 @@ export function createWebGL2PrototypeRendererAdapter({ canvas, config, state, ac
 
     drawOverlayCanvas(now, engine, frame);
     transientPipeline.render(engine, frame);
+    const transientStats = transientPipeline.getLastStats();
+    lastRenderStats = {
+      ...lastRenderStats,
+      overlayWidth: overlayCanvas.width,
+      overlayHeight: overlayCanvas.height,
+      ...transientStats
+    };
     transientPipeline.drawFlashOverlay(frame.flashColor, frame.flashIntensity || 0);
   }
 
@@ -163,6 +179,7 @@ export function createWebGL2PrototypeRendererAdapter({ canvas, config, state, ac
     kind: 'webgl2',
     composeFrame,
     render,
-    resize
+    resize,
+    getDebugStats: () => ({ ...lastRenderStats })
   });
 }
