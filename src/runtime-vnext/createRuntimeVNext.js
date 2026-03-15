@@ -4,8 +4,8 @@ import { createCanvas2DRendererAdapter } from './renderers/canvas2dRendererAdapt
 import { createWebGL2PrototypeRendererAdapter } from './renderers/webgl2PrototypeRendererAdapter.js';
 
 /**
- * Phase 0 scaffold for runtime-vnext.
- * Keeps Canvas2D as baseline while exposing explicit contracts for future lanes.
+ * Runtime-vnext composition root.
+ * Phase 1 adds WebGL2 prototype lane with fallback to Canvas2D baseline.
  */
 export function createRuntimeVNext({ canvas, ctx, config, state }) {
   const events = createRuntimeEvents();

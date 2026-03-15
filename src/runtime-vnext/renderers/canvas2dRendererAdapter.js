@@ -1,10 +1,16 @@
 import { createRenderer } from '../../render/renderer.js';
 import { createBackgroundRenderer } from '../../render/backgroundRenderer.js';
 import { createRendererAdapter } from '../contracts/rendererAdapter.js';
+import { createFrameCompositionController } from './frameCompositionController.js';
 
 export function createCanvas2DRendererAdapter({ canvas, ctx, config, state, activePointers }) {
   const backgroundRenderer = createBackgroundRenderer({ canvas, ctx, config, state });
   const renderer = createRenderer({ ctx, backgroundRenderer, activePointers, config, state });
+  const frameController = createFrameCompositionController({ state });
+
+  function composeFrame({ dt }) {
+    return frameController.compose(dt);
+  }
 
   function render(now, engine, frame = {}) {
     const shakeX = frame.shakeX || 0;
@@ -29,6 +35,7 @@ export function createCanvas2DRendererAdapter({ canvas, ctx, config, state, acti
   return createRendererAdapter({
     id: 'canvas2d-baseline',
     kind: 'canvas2d',
+    composeFrame,
     render,
     resize: () => {
       backgroundRenderer.initStars();
