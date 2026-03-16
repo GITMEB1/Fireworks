@@ -242,8 +242,8 @@ export function createEngine({ config, palettes, state, audio, runtimeVNext = nu
     const objectiveCfg = config.OBJECTIVE || {};
     const qualityScale = clamp(state.qualityScale, 0.55, 1);
     const fragmentQualityMult = state.reducedMotion
-      ? 0.58
-      : (qualityScale < 0.62 ? 0.62 : (qualityScale < 0.74 ? 0.76 : (qualityScale < 0.86 ? 0.9 : 1)));
+      ? 0.5
+      : (qualityScale < 0.62 ? 0.56 : (qualityScale < 0.74 ? 0.68 : (qualityScale < 0.86 ? 0.84 : 1)));
     const fragmentBudget = Math.min(
       config.LIMITS.maxTargetFragments,
       Math.max(6, Math.floor((objectiveCfg.targetFragmentMaxConcurrent || 24) * fragmentQualityMult))
@@ -255,10 +255,10 @@ export function createEngine({ config, palettes, state, audio, runtimeVNext = nu
     const typeBonus = target.kind === 'armored'
       ? (objectiveCfg.targetShatterArmoredFragments || 1)
       : (target.kind === 'priority' ? (objectiveCfg.targetShatterPriorityFragments || 1) : 0);
-    const powerScale = state.reducedMotion ? 1.7 : (fragmentQualityMult < 0.76 ? 1.9 : 2.3);
+    const powerScale = state.reducedMotion ? 1.35 : (fragmentQualityMult < 0.7 ? 1.55 : (fragmentQualityMult < 0.86 ? 1.85 : 2.2));
     const powerBonus = Math.max(0, Math.floor((hitMeta.shatterPower || 0) * powerScale));
     const maxCount = objectiveCfg.targetShatterMaxFragments || 6;
-    const minCount = fragmentQualityMult < 0.7 ? 1 : 2;
+    const minCount = fragmentQualityMult < 0.84 ? 1 : 2;
     const desired = clamp(Math.round((baseCount + typeBonus + powerBonus) * fragmentQualityMult), minCount, maxCount);
     const count = Math.min(remaining, desired);
     const budget = requestBudget('targetFragments', count, fragmentBudget, activeCounts.targetFragments);
@@ -349,7 +349,7 @@ export function createEngine({ config, palettes, state, audio, runtimeVNext = nu
     const perfectBonus = run.lastShotType === 'supernova' ? config.OBJECTIVE.scorePerfectBonus : 0;
     const criticalFinishBonus = hitMeta.wasCritical ? config.OBJECTIVE.scoreCriticalFinishBonus : 0;
     const shatterBonusBase = config.OBJECTIVE.scoreShatterBonus || 0;
-    const shatterQualityMult = hitMeta.hitQuality === 'direct' ? 1 : (hitMeta.hitQuality === 'glancing' ? 0.72 : 0.86);
+    const shatterQualityMult = hitMeta.hitQuality === 'direct' ? 1.06 : (hitMeta.hitQuality === 'glancing' ? 0.74 : 0.9);
     const shatterBonus = Math.round(shatterBonusBase * shatterQualityMult);
     run.score += Math.round((config.OBJECTIVE.scorePerClear + perfectBonus + criticalFinishBonus + shatterBonus) * comboMult);
 
