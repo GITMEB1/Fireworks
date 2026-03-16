@@ -52,6 +52,54 @@ export function createEngine({ config, palettes, state, audio, runtimeVNext = nu
 
   const runtimeEvents = runtimeVNext?.events;
   const runtimeBudgets = runtimeVNext?.budgets;
+  let objectiveRunCounter = 0;
+
+  function createObjectiveMetricsState() {
+    return {
+      runId: `run-${Date.now()}-${++objectiveRunCounter}`,
+      scoreBuckets: {
+        baseHitScore: 0,
+        directBonusScore: 0,
+        clearScore: 0,
+        shatterBonusScore: 0,
+        perfectBonusScore: 0
+      },
+      hitQualityCounts: { directHits: 0, normalHits: 0, glancingHits: 0 },
+      shatterCount: 0,
+      shatterPowerTotal: 0,
+      dirtyShotCount: 0,
+      targetExpiryCount: 0,
+      priorityExpiryCount: 0,
+      pressurePeak: 18,
+      ended: false
+    };
+  }
+
+  function markPressurePeak(run) {
+    if (!run?.metrics) return;
+    run.metrics.pressurePeak = Math.max(run.metrics.pressurePeak, run.pressure);
+  }
+
+  function endObjectiveRun(outcome, reason = 'unknown') {
+    const run = state.objectiveRun;
+    if (!run?.metrics || run.metrics.ended) return;
+    run.metrics.ended = true;
+    emitRuntime(RUNTIME_EVENT_TYPES.objectiveRunEnded, {
+      runId: run.metrics.runId,
+      outcome,
+      reason,
+      score: run.score,
+      pressure: run.pressure,
+      pressurePeak: run.metrics.pressurePeak,
+      scoreBuckets: { ...run.metrics.scoreBuckets },
+      hitQualityCounts: { ...run.metrics.hitQualityCounts },
+      shatterCount: run.metrics.shatterCount,
+      shatterPowerTotal: run.metrics.shatterPowerTotal,
+      dirtyShotCount: run.metrics.dirtyShotCount,
+      targetExpiryCount: run.metrics.targetExpiryCount,
+      priorityExpiryCount: run.metrics.priorityExpiryCount
+    });
+  }
 
   function emitRuntime(type, payload) {
     runtimeEvents?.emit(type, payload);
@@ -110,16 +158,28 @@ export function createEngine({ config, palettes, state, audio, runtimeVNext = nu
       urgentTargets: 0,
       criticalTargets: 0,
       lastHitFeedback: '',
-      lastHitFeedbackTimerMs: 0
+      lastHitFeedbackTimerMs: 0,
+      metrics: createObjectiveMetricsState()
     };
   }
 
   function resetObjectiveRun() {
+    const previousRun = state.objectiveRun;
+    if (previousRun && previousRun.status === 'running' && previousRun.metrics && !previousRun.metrics.ended) {
+      endObjectiveRun('survive', 'reset');
+    }
+
     state.objectiveRun = createObjectiveRunState();
     state.scheduledLaunches = [];
     state.activePointers.clear();
     activeCounts.targets = 0;
     activeCounts.targetFragments = 0;
+
+    emitRuntime(RUNTIME_EVENT_TYPES.objectiveRunReset, {
+      runId: state.objectiveRun.metrics.runId,
+      score: state.objectiveRun.score,
+      pressure: state.objectiveRun.pressure
+    });
   }
 
   if (!state.objectiveRun) resetObjectiveRun();
@@ -306,9 +366,26 @@ export function createEngine({ config, palettes, state, audio, runtimeVNext = nu
   function onTargetDamaged(target, intensity, hitMeta = {}) {
     const run = state.objectiveRun;
     if (!run || run.status !== 'running') return;
-    run.score += Math.max(1, Math.round(config.OBJECTIVE.scorePerHit * intensity));
-    if (hitMeta.hitQuality === 'direct') run.score += config.OBJECTIVE.scoreDirectHitBonus;
-    if (hitMeta.hitQuality === 'glancing') run.score = Math.max(0, run.score - Math.floor(config.OBJECTIVE.scoreDirectHitBonus * 0.25));
+    const hitBaseScore = Math.max(1, Math.round(config.OBJECTIVE.scorePerHit * intensity));
+    run.score += hitBaseScore;
+    if (run.metrics) run.metrics.scoreBuckets.baseHitScore += hitBaseScore;
+
+    if (run.metrics) {
+      if (hitMeta.hitQuality === 'direct') run.metrics.hitQualityCounts.directHits += 1;
+      else if (hitMeta.hitQuality === 'glancing') run.metrics.hitQualityCounts.glancingHits += 1;
+      else run.metrics.hitQualityCounts.normalHits += 1;
+    }
+
+    if (hitMeta.hitQuality === 'direct') {
+      run.score += config.OBJECTIVE.scoreDirectHitBonus;
+      if (run.metrics) run.metrics.scoreBuckets.directBonusScore += config.OBJECTIVE.scoreDirectHitBonus;
+    }
+
+    if (hitMeta.hitQuality === 'glancing') {
+      const glancingPenalty = Math.floor(config.OBJECTIVE.scoreDirectHitBonus * 0.25);
+      run.score = Math.max(0, run.score - glancingPenalty);
+      if (run.metrics) run.metrics.scoreBuckets.directBonusScore -= glancingPenalty;
+    }
 
     const destructState = target.destructionState;
     if (destructState === 'fracturing') {
@@ -353,11 +430,20 @@ export function createEngine({ config, palettes, state, audio, runtimeVNext = nu
     const shatterBonus = Math.round(shatterBonusBase * shatterQualityMult);
     run.score += Math.round((config.OBJECTIVE.scorePerClear + perfectBonus + criticalFinishBonus + shatterBonus) * comboMult);
 
+    if (run.metrics) {
+      run.metrics.scoreBuckets.clearScore += Math.round(config.OBJECTIVE.scorePerClear * comboMult);
+      run.metrics.scoreBuckets.perfectBonusScore += Math.round(perfectBonus * comboMult);
+      run.metrics.scoreBuckets.shatterBonusScore += Math.round((shatterBonus + criticalFinishBonus) * comboMult);
+      run.metrics.shatterCount += 1;
+      run.metrics.shatterPowerTotal += hitMeta.shatterPower || 0;
+    }
+
     run.phaseClears += 1;
     run.totalClears += 1;
     const recovery = run.lastShotType === 'supernova' ? config.OBJECTIVE.pressureRecoveryOnPerfect : config.OBJECTIVE.pressureRecoveryOnClear;
     const criticalRecovery = hitMeta.wasCritical ? config.OBJECTIVE.pressureRecoveryCriticalBonus : 0;
     run.pressure = clamp(run.pressure - recovery - criticalRecovery, 0, config.OBJECTIVE.maxPressure);
+    markPressurePeak(run);
 
     run.lastHitFeedback = hitMeta.hitQuality === 'direct' ? 'Direct shatter' : 'Target shattered';
     run.lastHitFeedbackTimerMs = 960;
@@ -390,8 +476,15 @@ export function createEngine({ config, palettes, state, audio, runtimeVNext = nu
       state.objectiveRun.lastShotType = type;
       if (type === 'dirty' && state.objectiveRun.status === 'running') {
         state.objectiveRun.pressure = clamp(state.objectiveRun.pressure + config.OBJECTIVE.pressurePerDirtyShot, 0, config.OBJECTIVE.maxPressure);
+        if (state.objectiveRun.metrics) state.objectiveRun.metrics.dirtyShotCount += 1;
       }
+      markPressurePeak(state.objectiveRun);
     }
+
+    emitRuntime(RUNTIME_EVENT_TYPES.shotRegistered, {
+      shotType: type,
+      runId: state.objectiveRun?.metrics?.runId || null
+    });
 
     if (type === 'supernova') {
       state.combo++;
@@ -436,6 +529,16 @@ export function createEngine({ config, palettes, state, audio, runtimeVNext = nu
             state.objectiveRun.lastHitFeedback = expiredTarget?.kind === 'priority' ? 'Priority target missed' : 'Target expired';
             state.objectiveRun.lastHitFeedbackTimerMs = 900;
             state.objectiveRun.pressure = clamp(state.objectiveRun.pressure + config.OBJECTIVE.pressurePerExpire * expirePressureMult, 0, config.OBJECTIVE.maxPressure);
+            if (state.objectiveRun.metrics) {
+              state.objectiveRun.metrics.targetExpiryCount += 1;
+              if (expiredTarget?.kind === 'priority') state.objectiveRun.metrics.priorityExpiryCount += 1;
+            }
+            markPressurePeak(state.objectiveRun);
+            emitRuntime(RUNTIME_EVENT_TYPES.targetExpired, {
+              runId: state.objectiveRun?.metrics?.runId || null,
+              targetKind: expiredTarget?.kind || 'normal',
+              expirePressureMult
+            });
           }
         }
         const last = pools[poolName][activeCounts[poolName] - 1];
@@ -507,6 +610,7 @@ export function createEngine({ config, palettes, state, audio, runtimeVNext = nu
     run.phaseTimerMs = Math.max(0, run.phaseTimerMs - dtMs);
     run.spawnCooldownMs -= dtMs;
     run.pressure = clamp(run.pressure - config.OBJECTIVE.pressureDecayPerSecond * (dtMs / 1000), 0, config.OBJECTIVE.maxPressure);
+    markPressurePeak(run);
 
     if (run.spawnCooldownMs <= 0) {
       spawnObjectiveTarget();
@@ -538,17 +642,20 @@ export function createEngine({ config, palettes, state, audio, runtimeVNext = nu
       run.phaseTimerMs = config.OBJECTIVE.phaseDurationMs;
       run.phaseClearTarget = config.OBJECTIVE.phaseClearTargetBase + (run.phase - 1) * config.OBJECTIVE.phaseClearTargetStep;
       run.pressure = clamp(run.pressure - 12, 0, config.OBJECTIVE.maxPressure);
+      markPressurePeak(run);
       run.objectiveText = `Phase ${run.phase} started`;
     }
 
     if (run.phaseTimerMs <= 0 && run.phaseClears < run.phaseClearTarget) {
       run.pressure = clamp(run.pressure + config.OBJECTIVE.pressurePerExpire * 0.8, 0, config.OBJECTIVE.maxPressure);
+      markPressurePeak(run);
       run.phaseTimerMs = config.OBJECTIVE.phaseDurationMs * 0.35;
       run.objectiveText = 'Phase overtime: pressure rising';
     }
 
     if (run.pressure >= config.OBJECTIVE.failPressure) {
       run.status = 'failed';
+      endObjectiveRun('fail', 'pressure-threshold');
       state.activePointers.clear();
       state.scheduledLaunches = [];
       activeCounts.fireworks = 0;

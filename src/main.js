@@ -7,3 +7,5 @@ const app = createFireworksApp({
 });
 
 app.start();
+
+if (typeof window !== 'undefined') window.__fireworksApp = app;

@@ -9,6 +9,7 @@ import { createInputSystem } from '../systems/inputSystem.js';
 import { createAudioSystem } from '../systems/audioSystem.js';
 import { bindReducedMotionListener } from '../systems/motionPreferenceSystem.js';
 import { createRuntimeVNext } from '../runtime-vnext/createRuntimeVNext.js';
+import { createRunMetricsCollector } from './runMetricsCollector.js';
 
 export function createFireworksApp({ canvas, hintEl, statusEl, configOverrides = {} }) {
   const config = createConfig(configOverrides);
@@ -16,6 +17,7 @@ export function createFireworksApp({ canvas, hintEl, statusEl, configOverrides =
   const state = createAppState();
   const audio = createAudioSystem();
   const runtimeVNext = createRuntimeVNext({ canvas, ctx, config, state });
+  const runMetricsCollector = createRunMetricsCollector({ events: runtimeVNext.events, state });
   canvas.dataset.rendererMode = runtimeVNext.mode;
   if (runtimeVNext.rendererAdapter?.fallbackReason) canvas.dataset.rendererFallbackReason = runtimeVNext.rendererAdapter.fallbackReason;
   canvas.dataset.rendererPreferredMode = runtimeVNext.preferredMode;
@@ -98,6 +100,7 @@ export function createFireworksApp({ canvas, hintEl, statusEl, configOverrides =
       if (rendererStats.fragmentVertices != null) canvas.dataset.rendererFragmentVertices = String(rendererStats.fragmentVertices);
     }
 
+    runMetricsCollector.sampleFrame();
     maybeAutoLaunch(timeScale);
   }
 
@@ -114,9 +117,11 @@ export function createFireworksApp({ canvas, hintEl, statusEl, configOverrides =
     if (state.frameHandle) cancelAnimationFrame(state.frameHandle);
     document.removeEventListener('visibilitychange', onVisibilityChange);
     window.removeEventListener('resize', resizeSystem.resize);
+    runMetricsCollector.forceFinalize('app-stop');
+    runMetricsCollector.dispose();
     if (renderer.dispose) renderer.dispose();
     unbindMotion();
   }
 
-  return { start, stop, engine, state, resize: resizeSystem.resize, runtimeVNext };
+  return { start, stop, engine, state, resize: resizeSystem.resize, runtimeVNext, runMetricsCollector };
 }
