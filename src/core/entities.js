@@ -296,8 +296,8 @@ export class PooledTargetFragment {
     this.ageMs = 0;
     const qualityScale = clamp(this.engine.state.qualityScale, 0.55, 1);
     const lifeScale = this.engine.state.reducedMotion
-      ? 0.72
-      : (qualityScale < 0.62 ? 0.76 : (qualityScale < 0.74 ? 0.84 : (qualityScale < 0.86 ? 0.92 : 1)));
+      ? 0.56
+      : (qualityScale < 0.62 ? 0.62 : (qualityScale < 0.74 ? 0.76 : (qualityScale < 0.86 ? 0.9 : 1)));
     this.lifetimeMs = Math.max(360, ((objectiveCfg.targetFragmentLifetimeMs || 1180) + rand(-1, 1) * (objectiveCfg.targetFragmentLifetimeJitterMs || 360)) * lifeScale);
     this.drag = clamp((objectiveCfg.targetFragmentDrag || 0.958) - (1 - lifeScale) * 0.018, 0.84, 0.995);
     this.gravityMult = (objectiveCfg.targetFragmentGravityMult || 0.96) + (1 - lifeScale) * 0.12;
@@ -609,4 +609,3 @@ export class PooledTarget {
     }
   }
 }
-
