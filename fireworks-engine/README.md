@@ -16,7 +16,7 @@ It replaces generic PromptFactory-style process docs with a lean system built ar
 3. Bind seams via `SEAM_MAP.md`.
 4. Score opportunities in `opportunities/scored_backlog.yaml`.
 5. Run implementation with one prompt module in `prompts/`.
-6. Run deterministic calibration/validation when gameplay or telemetry truthfulness is in scope (`npm run validate`).
+6. Run deterministic calibration/validation when gameplay or telemetry truthfulness is in scope (`npm run validate`). This lane now includes a first-class `high-end-mobile-premium` scenario and emits a manifest describing exactly what the artifacts validate.
 7. Record outcomes using `schemas/` templates.
 
 ## Not included on purpose

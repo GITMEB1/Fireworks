@@ -4,7 +4,8 @@ import { clamp } from '../core/utils.js';
 export function createRenderer({ ctx, backgroundRenderer, activePointers, config, state }) {
   const bloomCanvas = document.createElement('canvas');
   const bloomCtx = bloomCanvas.getContext('2d', { willReadFrequently: false });
-  let lastBloomW = 0, lastBloomH = 0;
+  let lastBloomW = 0;
+  let lastBloomH = 0;
   let bloomFrameCounter = 0;
   let bloomImpactPulseUntil = 0;
   let bloomNeedsRefresh = true;
@@ -14,7 +15,6 @@ export function createRenderer({ ctx, backgroundRenderer, activePointers, config
   function render(now, engine) {
     backgroundRenderer.renderBackground(now, engine);
 
-    // Draw main scene elements (those that should glow)
     ctx.globalCompositeOperation = 'lighter';
     for (let i = 0; i < engine.activeCounts.fireworks; i++) engine.pools.fireworks[i].draw(ctx);
     for (let i = 0; i < engine.activeCounts.particles; i++) engine.pools.particles[i].draw(ctx, now);
@@ -25,16 +25,16 @@ export function createRenderer({ ctx, backgroundRenderer, activePointers, config
     for (let i = 0; i < engine.activeCounts.targetFragments; i++) engine.pools.targetFragments[i].draw(ctx);
     for (let i = 0; i < engine.activeCounts.embers; i++) engine.pools.embers[i].draw(ctx);
 
-    // --- Dynamic Bloom Pass (stress-aware cadence + alpha guardrails) ---
     if (engine.state.qualityScale >= config.BLOOM.minQuality && !engine.state.reducedMotion) {
       const particleLoad = clamp(engine.activeCounts.particles / (config.LIMITS.maxParticles * 0.65), 0, 1);
       const shockwaveLoad = clamp(engine.activeCounts.shockwaves / Math.max(1, config.LIMITS.maxShockwaves), 0, 1);
+      const premiumProfileBoost = state.runtimeProfileId === 'high-end-mobile-premium' ? 1.12 : 1;
       const hasImpactFlash = engine.state.flashTimer > 0;
       if (hasImpactFlash) bloomImpactPulseUntil = now + config.BLOOM.impactPulseMs;
 
       const impactPulseActive = now < bloomImpactPulseUntil;
       const impactIntensity = clamp(shockwaveLoad * 0.55 + (impactPulseActive ? 0.5 : 0), 0, 1);
-      const targetBloomIntensity = clamp(0.08 + particleLoad * 0.32 + impactIntensity * 0.52, 0, 1);
+      const targetBloomIntensity = clamp((0.08 + particleLoad * 0.32 + impactIntensity * 0.52) * premiumProfileBoost, 0, 1);
       smoothedBloomIntensity += (targetBloomIntensity - smoothedBloomIntensity) * config.BLOOM.intensitySmoothing;
 
       const qualityFactor = clamp((engine.state.qualityScale - config.BLOOM.minQuality) / (1 - config.BLOOM.minQuality), 0, 1);
@@ -65,14 +65,14 @@ export function createRenderer({ ctx, backgroundRenderer, activePointers, config
       const shouldRefreshBloom = bloomNeedsRefresh || bloomFrameCounter === 0;
       if (shouldRefreshBloom) {
         bloomCtx.clearRect(0, 0, bw, bh);
-        const blurRadius = Math.max(1.8, (3.6 + smoothedBloomIntensity * 5.8) * scale);
+        const blurRadius = Math.max(1.8, (3.6 + smoothedBloomIntensity * 5.8) * scale * premiumProfileBoost);
         bloomCtx.filter = `blur(${blurRadius}px)`;
         bloomCtx.drawImage(ctx.canvas, 0, 0, bw, bh);
         bloomCtx.filter = 'none';
         bloomNeedsRefresh = false;
       }
 
-      bloomCompositeAlpha = clamp((config.BLOOM.baseAlpha + smoothedBloomIntensity * config.BLOOM.impactAlphaBoost) * overloadFade, 0.1, 0.62);
+      bloomCompositeAlpha = clamp((config.BLOOM.baseAlpha + smoothedBloomIntensity * config.BLOOM.impactAlphaBoost) * overloadFade, 0.1, 0.68);
       ctx.globalCompositeOperation = 'lighter';
       ctx.globalAlpha = bloomCompositeAlpha;
       ctx.drawImage(bloomCanvas, 0, 0, ctx.canvas.width, ctx.canvas.height);
@@ -80,7 +80,6 @@ export function createRenderer({ ctx, backgroundRenderer, activePointers, config
       ctx.globalCompositeOperation = 'source-over';
     }
 
-    // Draw UI elements absolute last so they don't blur
     renderChargeVisuals({ ctx, now, activePointers, config, engine });
   }
 

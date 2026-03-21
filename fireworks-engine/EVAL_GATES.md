@@ -18,6 +18,7 @@ Use these gates to decide if a change should ship.
 - Diff is understandable and maintainable.
 - Behavior is testable (manual or automated) with clear acceptance criteria.
 - Deterministic or otherwise reviewable validation path exists when balance/telemetry claims are central to the change.
+- Validation artifacts must say what they do **not** prove when visual feel or device-specific performance is part of the pitch.
 
 ## Gate E — Decision
 - **Ship:** high value, controlled risk, verified.

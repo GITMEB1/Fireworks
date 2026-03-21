@@ -225,30 +225,53 @@ export function createEngine({ config, palettes, state, audio, runtimeVNext = nu
     pools.particles[activeCounts.particles++].init(x, y, color, cfg);
   }
   function spawnGlow(x, y, color, radius = 80, alpha = 0.16, decay = 0.018, rise = -0.02) {
-    const limit = Math.floor(config.LIMITS.maxGlows * state.qualityScale);
-    if (activeCounts.glows >= limit) return;
-    pools.glows[activeCounts.glows++].init(x, y, color, radius * config.glowIntensity, alpha, decay, rise);
+    const impactCfg = config.IMPACT_VISUALS || {};
+    const limit = runtimeBudgets
+      ? runtimeBudgets.getQualityScaledLimit(config.LIMITS.maxGlows)
+      : Math.floor(config.LIMITS.maxGlows * state.qualityScale);
+    const budget = requestBudget('glows', 1, limit, activeCounts.glows);
+    if (budget.allowed < 1) return;
+    pools.glows[activeCounts.glows++].init(
+      x,
+      y,
+      color,
+      radius * config.glowIntensity * (impactCfg.glowRadiusMult || 1),
+      alpha * (impactCfg.glowAlphaMult || 1),
+      decay,
+      rise
+    );
   }
   function spawnSmokeBurst(x, y, color, amount = 3) {
     if (!config.smokeEnabled || state.reducedMotion) return;
-    const limit = Math.floor(config.LIMITS.maxSmoke * state.qualityScale);
-    for (let i = 0; i < amount && activeCounts.smokes < limit; i++) {
+    const limit = runtimeBudgets
+      ? runtimeBudgets.getQualityScaledLimit(config.LIMITS.maxSmoke)
+      : Math.floor(config.LIMITS.maxSmoke * state.qualityScale);
+    const budget = requestBudget('smokes', amount, limit, activeCounts.smokes);
+    for (let i = 0; i < budget.allowed && activeCounts.smokes < config.LIMITS.maxSmoke; i++) {
       pools.smokes[activeCounts.smokes++].init(x, y, color);
     }
   }
   function spawnEmbers(x, y, color, amount = 8) {
-    const limit = Math.floor(config.LIMITS.maxEmbers * state.qualityScale);
-    for (let i = 0; i < amount && activeCounts.embers < limit; i++) {
+    const emberAmount = Math.max(1, Math.round(amount * ((config.IMPACT_VISUALS || {}).emberCountMult || 1)));
+    const limit = runtimeBudgets
+      ? runtimeBudgets.getQualityScaledLimit(config.LIMITS.maxEmbers)
+      : Math.floor(config.LIMITS.maxEmbers * state.qualityScale);
+    const budget = requestBudget('embers', emberAmount, limit, activeCounts.embers);
+    for (let i = 0; i < budget.allowed && activeCounts.embers < config.LIMITS.maxEmbers; i++) {
       pools.embers[activeCounts.embers++].init(x, y, color);
     }
   }
   function spawnShockwave(x, y, color, charge = 0) {
+    const impactCfg = config.IMPACT_VISUALS || {};
     const limit = runtimeBudgets
       ? runtimeBudgets.getQualityScaledLimit(config.LIMITS.maxShockwaves)
       : Math.floor(config.LIMITS.maxShockwaves * state.qualityScale);
     const budget = requestBudget('shockwaves', 1, limit, activeCounts.shockwaves);
     if (budget.allowed < 1) return;
-    pools.shockwaves[activeCounts.shockwaves++].init(x, y, color, charge);
+    const shockwave = pools.shockwaves[activeCounts.shockwaves++];
+    shockwave.init(x, y, color, charge * (impactCfg.shockwaveRadiusMult || 1));
+    shockwave.lineWidth *= impactCfg.shockwaveLineWidthMult || 1;
+    shockwave.alpha *= impactCfg.shockwaveAlphaMult || 1;
     emitRuntime(RUNTIME_EVENT_TYPES.shockwaveSpawned, { x, y, color, charge, activeShockwaves: activeCounts.shockwaves });
   }
   function spawnShellTo(tx, ty, type, palette, startX = null, charge = 0, prestige = false, outcomeMeta = null) {

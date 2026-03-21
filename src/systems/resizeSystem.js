@@ -7,10 +7,11 @@ export function createResizeSystem({ canvas, ctx, state, backgroundRenderer = nu
 
     state.width = newW;
     state.height = newH;
-    state.dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const dprCap = state.displayDprCap || 2;
+    state.dpr = Math.min(window.devicePixelRatio || 1, dprCap);
 
-    canvas.width = state.width * state.dpr;
-    canvas.height = state.height * state.dpr;
+    canvas.width = Math.round(state.width * state.dpr);
+    canvas.height = Math.round(state.height * state.dpr);
     canvas.style.width = `${state.width}px`;
     canvas.style.height = `${state.height}px`;
 

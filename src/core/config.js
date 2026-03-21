@@ -39,6 +39,45 @@ export const CONFIG = {
   RENDERER: {
     mode: 'canvas2d-baseline'
   },
+  DISPLAY: {
+    dprCap: 2
+  },
+
+  SKY: {
+    starDensity: 1,
+    twinkleDensity: 1,
+    nebulaAlpha: 0.08,
+    horizonGlowAlpha: 0.14,
+    premiumBands: 2,
+    gradientSaturation: 1
+  },
+
+  CHARGE_VISUALS: {
+    glowScale: 1,
+    ringScale: 1,
+    orbitCountBoost: 0,
+    sparkChanceMult: 1,
+    crosshairScale: 1,
+    premiumTrailAlpha: 1
+  },
+
+  TARGET_VISUALS: {
+    haloAlpha: 0.18,
+    haloScale: 1.16,
+    accentAlpha: 0.2,
+    lifeArcWidthBoost: 1,
+    criticalRingBoost: 1,
+    glyphAlpha: 0.7
+  },
+
+  IMPACT_VISUALS: {
+    shockwaveRadiusMult: 1,
+    shockwaveLineWidthMult: 1,
+    shockwaveAlphaMult: 1,
+    glowRadiusMult: 1,
+    glowAlphaMult: 1,
+    emberCountMult: 1
+  },
   QUALITY: {
     enabled: true,
     sampleSize: 30,
@@ -67,26 +106,26 @@ export const CONFIG = {
 
   OBJECTIVE: {
     enabled: true,
-    initialPressure: 18,
-    maxConcurrentTargets: 4,
-    spawnCooldownMs: 1520,
-    spawnJitterMs: 480,
-    targetLifetimeMs: 7600,
+    initialPressure: 28,
+    maxConcurrentTargets: 5,
+    spawnCooldownMs: 1320,
+    spawnJitterMs: 420,
+    targetLifetimeMs: 7000,
     maxPressure: 100,
     warningPressure: 72,
     failPressure: 100,
-    pressurePerExpire: 18,
-    pressurePerDirtyShot: 8,
-    pressureDecayPerSecond: 1.8,
-    pressureRecoveryOnClear: 9,
-    pressureRecoveryOnPerfect: 12,
+    pressurePerExpire: 22,
+    pressurePerDirtyShot: 10,
+    pressureDecayPerSecond: 1.1,
+    pressureRecoveryOnClear: 6,
+    pressureRecoveryOnPerfect: 8,
     scorePerHit: 20,
     scorePerClear: 120,
     scorePerfectBonus: 60,
     comboWindowMs: 2400,
     comboMax: 5,
     comboBonusPerStep: 0.15,
-    phaseDurationMs: 26000,
+    phaseDurationMs: 24000,
     phaseClearTargetBase: 6,
     phaseClearTargetStep: 2,
     phaseTargetSpeedMultStep: 0.08,
@@ -240,6 +279,11 @@ export function createConfig(overrides = {}) {
     CHARGE: { ...CONFIG.CHARGE, ...(overrides.CHARGE || {}) },
     QUALITY: { ...CONFIG.QUALITY, ...(overrides.QUALITY || {}) },
     RENDERER: { ...CONFIG.RENDERER, ...(overrides.RENDERER || {}) },
+    DISPLAY: { ...CONFIG.DISPLAY, ...(overrides.DISPLAY || {}) },
+    SKY: { ...CONFIG.SKY, ...(overrides.SKY || {}) },
+    CHARGE_VISUALS: { ...CONFIG.CHARGE_VISUALS, ...(overrides.CHARGE_VISUALS || {}) },
+    TARGET_VISUALS: { ...CONFIG.TARGET_VISUALS, ...(overrides.TARGET_VISUALS || {}) },
+    IMPACT_VISUALS: { ...CONFIG.IMPACT_VISUALS, ...(overrides.IMPACT_VISUALS || {}) },
     BLOOM: { ...CONFIG.BLOOM, ...(overrides.BLOOM || {}) },
     OBJECTIVE: { ...CONFIG.OBJECTIVE, ...(overrides.OBJECTIVE || {}) },
     PHYSICS: {
