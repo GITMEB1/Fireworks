@@ -1,49 +1,93 @@
-# Workstream D — Verification and enforcement realism
+# Workstream D — verification reality
 
 ## actual tooling inventory
-### Direct observation
-- `package.json` defines only `start` and `dev`, both using `http-server`.
-- No test runner config, linter config, formatter config, or typechecker config was found in repo root.
-- `.github/workflows/azure-webapps-node.yml` invokes `npm run build --if-present` and `npm run test --if-present`, but those scripts do not exist in `package.json`.
-- `fireworks-engine/runs/` contains many markdown run artifacts and one JSON metrics artifact (`hit-quality-calibration-data.json`).
-- There is lightweight in-app metrics plumbing via `src/app/runMetricsCollector.js` and runtime events under `src/runtime-vnext/contracts/*`.
+
+### direct observation
+- `package.json` defines only `start` and `dev`, both serving the repo with `http-server`.
+- No `test`, `lint`, `build`, `typecheck`, or validation scripts are defined in `package.json`.
+- `.github/workflows/static-pages.yml` deploys static content directly to GitHub Pages; it does not run validation.
+- `.github/workflows/azure-webapps-node.yml` runs `npm install`, `npm run build --if-present`, and `npm run test --if-present`, which means build/test are optional and currently no-op because the scripts are absent.
+- `src/systems/qualitySystem.js` is an in-app adaptive runtime safeguard.
+- `src/app/runMetricsCollector.js` is an in-app metrics collector that records quality scale and budget-denial data per run and can export calibration JSON through the console.
+- `src/runtime-vnext/contracts/runtimeBudgetManager.js` and runtime event contracts provide runtime guardrail plumbing.
+
+### inference
+- The repo has **runtime guardrails** but only **minimal repository-level tooling**.
 
 ## documentary safeguards
-### Direct observation
-- `fireworks-engine/EVAL_GATES.md` defines product, seam, performance, implementation, and decision gates.
-- `fireworks-engine/OPERATING_MODEL.md` requires a verification pass and evaluation artifact.
-- `fireworks-engine/schemas/test_plan.yaml.md` and `fireworks-engine/schemas/eval_record.yaml.md` define structured validation templates.
-- Many run reports include "Verification performed" sections.
+
+### direct observation
+- `AGENTS.md` requires truthful reporting, seam binding, and run artifacts for substantial work.
+- `fireworks-engine/EVAL_GATES.md` defines product/seam/perf/quality decision gates.
+- `fireworks-engine/schemas/test_plan.yaml.md` and `eval_record.yaml.md` define expected verification artifacts.
+- `fireworks-engine/runs/*` repeatedly record checks, confidence levels, and ship/prototype/defer decisions.
+- `.agents/workflows/opportunity-discovery.md` contains extensive evaluation-gate language and claim-control rules.
+
+### inference
+- The repo is rich in documentary verification language. It tells contributors how to think and how to report.
 
 ## enforced safeguards
-### Direct observation
-- There is no evidence of automated tests, lint checks, or CI quality gates that would fail a change locally in this checkout.
-- Runtime-vnext does emit budget and objective events, and `src/app/runMetricsCollector.js` can serialize metrics, so there is some executable instrumentation.
-- Fallback behavior and renderer mode metadata are operational in code via `src/runtime-vnext/createRuntimeVNext.js` and `src/app/createFireworksApp.js`.
 
-### Inference
-- The repo enforces a small amount of runtime behavior observability, but almost none of the broader governance language is machine-enforced.
+### direct observation
+- Adaptive quality scaling is enforced in runtime through `src/systems/qualitySystem.js`.
+- Renderer-mode fallback is enforced in `src/runtime-vnext/createRuntimeVNext.js` and the WebGL2 prototype adapter via Canvas2D fallback.
+- Budget requests and budget-denial events are enforced in runtime-vnext budget plumbing and consumed by `src/core/engine.js` and `src/app/runMetricsCollector.js`.
+- Reduced-motion behavior is bound in `src/systems/motionPreferenceSystem.js` and consulted by quality/render logic.
+
+### inference
+- The strongest enforcement is **inside the running app**, not in CI or package scripts.
 
 ## biggest enforcement gap
-- The repo talks in detail about evaluation, quality gates, and verification, but ships without automated `test`, `lint`, `build`, or type-check scripts in `package.json`.
 
-## minimum tooling upgrade with highest leverage
-- Add one deterministic, headless verification lane around runtime events and objective metrics.
+### direct observation
+- There is no repeatable automated check that the repo can even build, lint, or statically validate JavaScript.
+- There is no test runner configured.
+- There is no lint/type discipline configured.
+- The main deployment workflow for Pages uploads the repository as-is with no preflight validation.
+- The Azure workflow appears partially templated and weakly maintained: it contains duplicate `env:` keys and relies on missing build/test scripts.
 
-### Direct observation
-- `src/app/runMetricsCollector.js` and `src/runtime-vnext/contracts/runtimeEventTypes.js` already provide an event surface.
-- `fireworks-engine/runs/hit-quality-calibration-pass.md` explicitly calls for an in-repo calibration runner without external browser dependency.
+### inference
+- **Biggest enforcement gap: the governance layer claims disciplined verification, but repository automation barely enforces anything before deployment.**
 
-### Inference
-- A Node-based deterministic scenario runner over engine/runtime events would give the highest leverage because it reuses existing instrumentation and directly supports the repo's calibration-heavy governance language.
+## smallest high-leverage tooling upgrade
+
+### direct observation
+- The repo is plain JavaScript and static hosting. A lightweight check could be added without architecture churn.
+
+### inference
+- **Smallest high-leverage upgrade:** add a real validation script surface in `package.json` and wire it into CI. Even one of these would materially improve truthfulness:
+  - syntax/static parse check for `src/**/*.js`,
+  - a minimal smoke test that loads the app or validates imports,
+  - a real `npm run test` or `npm run lint` target that CI actually executes.
+- This is smaller and more leverage-rich than adding more documentation because it converts current documentary gates into enforced preflight checks.
 
 ## maturity verdict
-**partially operational**
 
-### Why
-### Direct observation
-- The repo has real runtime instrumentation and a large habit of recording run reports.
-- The repo lacks standard automated enforcement for most of its stated evaluation doctrine.
+### direct observation
+- Verification exists as runtime safeguards, detailed docs, run reports, and some calibration instrumentation.
+- Verification is not strongly enforced by package scripts or CI.
 
-### Inference
-- Verification is more than pure documentation, but still under-tooled relative to its governance vocabulary.
+### inference
+- **Verdict: partially operational.**
+- Calling it "documentary only" would ignore genuine runtime budget/fallback/quality enforcement.
+- Calling it "meaningfully enforced" would overstate the absent repo-level automation.
+
+## exact evidence list with file paths
+- `AGENTS.md`
+- `fireworks-engine/EVAL_GATES.md`
+- `fireworks-engine/schemas/test_plan.yaml.md`
+- `fireworks-engine/schemas/eval_record.yaml.md`
+- `fireworks-engine/runs/high-effort-observation-review.md`
+- `fireworks-engine/runs/repository-deep-audit-and-guidance.md`
+- `.agents/workflows/opportunity-discovery.md`
+- `package.json`
+- `.github/workflows/static-pages.yml`
+- `.github/workflows/azure-webapps-node.yml`
+- `src/app/createFireworksApp.js`
+- `src/app/runMetricsCollector.js`
+- `src/systems/qualitySystem.js`
+- `src/systems/motionPreferenceSystem.js`
+- `src/core/engine.js`
+- `src/runtime-vnext/createRuntimeVNext.js`
+- `src/runtime-vnext/contracts/runtimeBudgetManager.js`
+- `src/runtime-vnext/contracts/runtimeEventTypes.js`

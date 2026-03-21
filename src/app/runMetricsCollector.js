@@ -79,11 +79,11 @@ export function createRunMetricsCollector({ events, state }) {
     },
     forceFinalize(reason = 'explicit-stop') {
       if (state.objectiveRun?.status === 'running') {
-        state.objectiveRun.status = 'completed';
+        state.objectiveRun.status = 'aborted';
         if (state.objectiveRun.metrics) state.objectiveRun.metrics.ended = true;
         events.emit(RUNTIME_EVENT_TYPES.objectiveRunEnded, {
           runId: state.objectiveRun.metrics.runId,
-          outcome: 'survive',
+          outcome: 'aborted',
           reason,
           score: state.objectiveRun.score,
           pressure: state.objectiveRun.pressure,
@@ -104,6 +104,7 @@ export function createRunMetricsCollector({ events, state }) {
     }
   };
 
+  // Intentional calibration/debug hook for browser-driven run capture and review.
   if (typeof window !== 'undefined') window.__fireworksCalibration = api;
 
   return api;

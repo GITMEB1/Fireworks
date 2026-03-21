@@ -67,6 +67,7 @@ export const CONFIG = {
 
   OBJECTIVE: {
     enabled: true,
+    initialPressure: 18,
     maxConcurrentTargets: 4,
     spawnCooldownMs: 1520,
     spawnJitterMs: 480,

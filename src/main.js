@@ -8,4 +8,5 @@ const app = createFireworksApp({
 
 app.start();
 
+// Intentional debug/calibration hook for browser-driven inspection and control.
 if (typeof window !== 'undefined') window.__fireworksApp = app;

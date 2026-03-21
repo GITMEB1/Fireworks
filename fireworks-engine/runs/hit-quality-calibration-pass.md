@@ -1,7 +1,7 @@
 # Hit-Quality Calibration Pass
 
 ## Problem
-Run the fixed-scenario calibration pass with deterministic per-run logging so hit-quality/reward balance can be evaluated with explicit attribution.
+Review the captured scenario-based calibration pass and per-run logging so hit-quality/reward balance can be discussed with explicit attribution, while staying honest about the current automation limits.
 
 ## Seam binding
 - `src/runtime-vnext/contracts/runtimeEventTypes.js`
@@ -36,7 +36,7 @@ Per-run record fields:
 1. Added objective-run lifecycle and metrics emission in `engine` without changing gameplay resolution logic.
 2. Added runtime events for shot registration, target expiry, run reset, and run end.
 3. Added app-level run metrics collector that subscribes to runtime events and exports stable JSON.
-4. Exposed app handle on `window` for calibration automation control.
+4. Exposed intentional app/calibration debug hooks on `window` for browser-driven inspection and calibration control.
 
 ## Scenario matrix and protocol
 Target matrix:
@@ -44,10 +44,14 @@ Target matrix:
 2. reduced motion
 3. low-end emulation
 
-Execution protocol used:
+Observed protocol in the captured pass:
 - 10 runs per attempted scenario
-- fixed timing loop and fixed stop/reset sequence
-- one run record emitted per explicit run end
+- browser-driven stop/reset sequencing aimed at consistent collection
+- one run record emitted per explicit run end in the captured desktop dataset
+
+Limits on reproducibility:
+- no deterministic in-repo calibration runner is present in this checkout
+- the captured pass depends on external browser automation and exposed debug hooks rather than a reviewable repo-local harness
 
 ## Aggregate results
 ### Desktop high quality (n=10)
@@ -59,7 +63,7 @@ Execution protocol used:
   - clear: `0 / 0`
   - shatter bonus: `0 / 0`
   - perfect bonus: `0 / 0`
-- fail rate: `0%`
+- recorded outcomes in captured data: `10 survive labels`, but these came from pre-fix forced-finalization/reset sequencing in the collector/control flow and should not be read as true successful survives
 - mean/median pressure peak: `18 / 18`
 - mean/median avg quality scale: `0.7953 / 0.76`
 
@@ -81,8 +85,9 @@ These were set before retune decision:
 - Gate decision: **prototype**.
 
 ## Verification performed
-- Runtime checks via local app session and Playwright automation.
-- Record completeness check: one record per run end in captured dataset.
+- Static review of the captured artifact, related source paths, and collector/event plumbing.
+- Record completeness check: one record per run end in captured desktop dataset.
+- No deterministic in-repo harness was available to re-run the matrix in this cleanup pass.
 
 ## Uncertainty and risks
 - Scenario matrix is incomplete (only desktop fully captured in artifact file).
