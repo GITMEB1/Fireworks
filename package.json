@@ -2,10 +2,13 @@
   "name": "fireworks-simulator",
   "version": "1.0.0",
   "description": "Premium Fireworks - True Delta Edition",
+  "type": "module",
   "main": "index.html",
   "scripts": {
     "start": "http-server . -p 8080",
-    "dev": "http-server . -p 3000"
+    "dev": "http-server . -p 3000",
+    "calibrate": "node scripts/run-deterministic-calibration.mjs",
+    "validate": "npm run calibrate"
   },
   "dependencies": {
     "http-server": "^14.1.1"
