@@ -30,6 +30,9 @@ export function createRunMetricsCollector({ events, state, attachToWindow = true
 
     records.push({
       scenarioId,
+      runtimeProfileId: state.runtimeProfileId || 'desktop-default',
+      runtimeProfileLabel: state.runtimeProfileLabel || 'Desktop Default',
+      displayDprCap: state.displayDprCap || 2,
       runId: payload.runId,
       timestamp: new Date().toISOString(),
       totalScore: payload.score,

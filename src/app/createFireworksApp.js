@@ -10,14 +10,47 @@ import { createAudioSystem } from '../systems/audioSystem.js';
 import { bindReducedMotionListener } from '../systems/motionPreferenceSystem.js';
 import { createRuntimeVNext } from '../runtime-vnext/createRuntimeVNext.js';
 import { createRunMetricsCollector } from './runMetricsCollector.js';
+import { readBrowserRuntimeInfo, resolveRuntimeProfile } from './runtimeProfiles.js';
 
-export function createFireworksApp({ canvas, hintEl, statusEl, configOverrides = {} }) {
-  const config = createConfig(configOverrides);
+function mergeConfigOverrides(profileOverrides = {}, configOverrides = {}) {
+  return {
+    ...profileOverrides,
+    ...configOverrides,
+    LIMITS: { ...(profileOverrides.LIMITS || {}), ...(configOverrides.LIMITS || {}) },
+    QUALITY: { ...(profileOverrides.QUALITY || {}), ...(configOverrides.QUALITY || {}) },
+    DISPLAY: { ...(profileOverrides.DISPLAY || {}), ...(configOverrides.DISPLAY || {}) },
+    SKY: { ...(profileOverrides.SKY || {}), ...(configOverrides.SKY || {}) },
+    CHARGE_VISUALS: { ...(profileOverrides.CHARGE_VISUALS || {}), ...(configOverrides.CHARGE_VISUALS || {}) },
+    TARGET_VISUALS: { ...(profileOverrides.TARGET_VISUALS || {}), ...(configOverrides.TARGET_VISUALS || {}) },
+    IMPACT_VISUALS: { ...(profileOverrides.IMPACT_VISUALS || {}), ...(configOverrides.IMPACT_VISUALS || {}) },
+    BLOOM: { ...(profileOverrides.BLOOM || {}), ...(configOverrides.BLOOM || {}) },
+    OBJECTIVE: { ...(profileOverrides.OBJECTIVE || {}), ...(configOverrides.OBJECTIVE || {}) }
+  };
+}
+
+export function createFireworksApp({ canvas, hintEl, statusEl, configOverrides = {}, runtimeProfileId = null } = {}) {
+  const runtimeInfo = readBrowserRuntimeInfo();
+  const runtimeProfile = resolveRuntimeProfile({
+    requestedProfileId: runtimeProfileId || runtimeInfo.requestedProfileId || configOverrides.runtimeProfileId || null,
+    runtimeInfo
+  });
+  const mergedOverrides = mergeConfigOverrides(runtimeProfile.configOverrides, configOverrides);
+  const config = createConfig(mergedOverrides);
   const ctx = create2DContext(canvas);
-  const state = createAppState();
+  const state = createAppState({
+    qualityScale: runtimeProfile.stateOverrides.qualityScale ?? config.QUALITY.maxScale,
+    reducedMotion: runtimeInfo.reducedMotion,
+    runtimeProfileId: runtimeProfile.id,
+    runtimeProfileLabel: runtimeProfile.label,
+    runtimeProfileMeta: runtimeProfile.runtimeInfo,
+    displayDprCap: runtimeProfile.stateOverrides.displayDprCap ?? config.DISPLAY.dprCap
+  });
   const audio = createAudioSystem();
   const runtimeVNext = createRuntimeVNext({ canvas, ctx, config, state });
   const runMetricsCollector = createRunMetricsCollector({ events: runtimeVNext.events, state });
+  canvas.dataset.runtimeProfile = runtimeProfile.id;
+  canvas.dataset.runtimeProfileLabel = runtimeProfile.label;
+  canvas.dataset.runtimeMobileLike = String(!!runtimeProfile.runtimeInfo.isMobileLike);
   canvas.dataset.rendererMode = runtimeVNext.mode;
   if (runtimeVNext.rendererAdapter?.fallbackReason) canvas.dataset.rendererFallbackReason = runtimeVNext.rendererAdapter.fallbackReason;
   canvas.dataset.rendererPreferredMode = runtimeVNext.preferredMode;
@@ -75,7 +108,6 @@ export function createFireworksApp({ canvas, hintEl, statusEl, configOverrides =
 
     qualitySystem.updateAdaptiveQuality(now, dt);
 
-    // Supernova Time Dilation
     if (state.timeDilationTimer > 0) {
       state.timeDilationTimer -= dt;
       if (state.timeDilationTimer <= 0) {
@@ -83,7 +115,7 @@ export function createFireworksApp({ canvas, hintEl, statusEl, configOverrides =
         state.timeDilationTimer = 0;
       }
     }
-    
+
     engine.update(timeScale * state.timeDilation, now);
 
     const frame = renderer.composeFrame
@@ -123,5 +155,14 @@ export function createFireworksApp({ canvas, hintEl, statusEl, configOverrides =
     unbindMotion();
   }
 
-  return { start, stop, engine, state, resize: resizeSystem.resize, runtimeVNext, runMetricsCollector };
+  return {
+    start,
+    stop,
+    engine,
+    state,
+    resize: resizeSystem.resize,
+    runtimeVNext,
+    runtimeProfile,
+    runMetricsCollector
+  };
 }

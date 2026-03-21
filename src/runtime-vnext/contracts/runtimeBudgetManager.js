@@ -21,6 +21,9 @@ export function createRuntimeBudgetManager({ config, state, events }) {
     return {
       qualityScale: state.qualityScale,
       particles: { active: engine.activeCounts.particles, max: config.LIMITS.maxParticles },
+      smokes: { active: engine.activeCounts.smokes, max: config.LIMITS.maxSmoke },
+      glows: { active: engine.activeCounts.glows, max: config.LIMITS.maxGlows },
+      embers: { active: engine.activeCounts.embers, max: config.LIMITS.maxEmbers },
       shockwaves: { active: engine.activeCounts.shockwaves, max: config.LIMITS.maxShockwaves },
       targetFragments: { active: engine.activeCounts.targetFragments, max: config.LIMITS.maxTargetFragments },
       targets: { active: engine.activeCounts.targets, max: config.LIMITS.maxTargets }

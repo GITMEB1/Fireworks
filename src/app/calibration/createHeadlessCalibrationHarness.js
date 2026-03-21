@@ -5,30 +5,58 @@ import { createRuntimeEvents } from '../../runtime-vnext/contracts/runtimeEvents
 import { createRuntimeBudgetManager } from '../../runtime-vnext/contracts/runtimeBudgetManager.js';
 import { createRunMetricsCollector } from '../runMetricsCollector.js';
 import { withDeterministicRandom } from '../../core/deterministicRandom.js';
+import { getRuntimeProfileById } from '../runtimeProfiles.js';
 
 const FRAME_MS = 16.666;
 const MAX_RUN_MS = 70000;
 const ACTION_INTERVAL_MS = 320;
 
+function mergeScenarioOverrides(profileOverrides = {}, scenarioOverrides = {}) {
+  return {
+    ...profileOverrides,
+    ...scenarioOverrides,
+    LIMITS: { ...(profileOverrides.LIMITS || {}), ...(scenarioOverrides.LIMITS || {}) },
+    QUALITY: { ...(profileOverrides.QUALITY || {}), ...(scenarioOverrides.QUALITY || {}) },
+    DISPLAY: { ...(profileOverrides.DISPLAY || {}), ...(scenarioOverrides.DISPLAY || {}) },
+    SKY: { ...(profileOverrides.SKY || {}), ...(scenarioOverrides.SKY || {}) },
+    CHARGE_VISUALS: { ...(profileOverrides.CHARGE_VISUALS || {}), ...(scenarioOverrides.CHARGE_VISUALS || {}) },
+    TARGET_VISUALS: { ...(profileOverrides.TARGET_VISUALS || {}), ...(scenarioOverrides.TARGET_VISUALS || {}) },
+    IMPACT_VISUALS: { ...(profileOverrides.IMPACT_VISUALS || {}), ...(scenarioOverrides.IMPACT_VISUALS || {}) },
+    BLOOM: { ...(profileOverrides.BLOOM || {}), ...(scenarioOverrides.BLOOM || {}) },
+    OBJECTIVE: { ...(profileOverrides.OBJECTIVE || {}), ...(scenarioOverrides.OBJECTIVE || {}) }
+  };
+}
+
 export function runDeterministicCalibrationScenario({ scenario, runIndex }) {
   const seed = `${scenario.id}:${runIndex}`;
 
   return withDeterministicRandom(seed, () => {
-    const config = createConfig({
+    const runtimeProfile = getRuntimeProfileById(scenario.runtimeProfileId || 'desktop-default');
+    const config = createConfig(mergeScenarioOverrides(runtimeProfile.configOverrides, {
       QUALITY: {
         enabled: scenario.qualityEnabled,
-        minScale: Math.min(scenario.qualityScale, 0.62),
+        minScale: Math.min(scenario.qualityScale, runtimeProfile.configOverrides?.QUALITY?.minScale ?? scenario.qualityScale),
         maxScale: scenario.qualityScale,
         reduceMotionScale: scenario.qualityScale
       }
-    });
+    }));
 
     const state = createAppState({
       reducedMotion: scenario.reducedMotion,
       width: scenario.width,
       height: scenario.height,
       qualityScale: scenario.qualityScale,
-      userInteracted: true
+      userInteracted: true,
+      runtimeProfileId: runtimeProfile.id,
+      runtimeProfileLabel: runtimeProfile.label,
+      displayDprCap: runtimeProfile.stateOverrides?.displayDprCap ?? config.DISPLAY.dprCap,
+      runtimeProfileMeta: {
+        width: scenario.width,
+        height: scenario.height,
+        devicePixelRatio: runtimeProfile.stateOverrides?.displayDprCap ?? config.DISPLAY.dprCap,
+        isMobileLike: runtimeProfile.id !== 'desktop-default',
+        reducedMotion: scenario.reducedMotion
+      }
     });
     state.width = scenario.width;
     state.height = scenario.height;
@@ -164,7 +192,7 @@ function resolveImpactIntensity({ target, shotType, hitQuality, scenario }) {
   const qualityAdjust = hitQuality === 'direct' ? 0.18 : (hitQuality === 'glancing' ? -0.16 : 0);
   const urgencyAdjust = target.isUrgent ? 0.08 : 0;
   const criticalAdjust = isCritical ? 0.1 : 0;
-  const scenarioAdjust = scenario.id === 'low-end-emulation' ? -0.04 : 0;
+  const scenarioAdjust = scenario.id === 'low-end-emulation' ? -0.04 : (scenario.id === 'high-end-mobile-premium' ? 0.02 : 0);
   return Math.max(0.08, base + qualityAdjust + urgencyAdjust + criticalAdjust + scenarioAdjust);
 }
 

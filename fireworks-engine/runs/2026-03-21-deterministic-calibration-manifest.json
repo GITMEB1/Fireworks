@@ -1,0 +1,31 @@
+{
+  "generatedAt": "2026-03-21T19:41:19.398Z",
+  "sourceRevision": "6ea0ac3095c8739f30d6737ced3f16b3c67acc11",
+  "runsPerScenario": 10,
+  "scenarioIds": [
+    "desktop-high-quality",
+    "high-end-mobile-premium",
+    "reduced-motion",
+    "low-end-emulation"
+  ],
+  "runtimeProfileIds": [
+    "desktop-default",
+    "high-end-mobile-premium",
+    "mobile-balanced"
+  ],
+  "overallStatus": "ship",
+  "datedDataFile": "2026-03-21-deterministic-calibration-data.json",
+  "datedReportFile": "2026-03-21-deterministic-calibration-pass.md",
+  "latestDataFile": "latest-deterministic-calibration-data.json",
+  "latestReportFile": "latest-deterministic-calibration-pass.md",
+  "truthfulScope": {
+    "validates": [
+      "Objective pressure, score attribution, hit-quality distributions, and runtime budget denials under deterministic profile assumptions.",
+      "Profile-specific quality-scale behavior and telemetry output."
+    ],
+    "doesNotValidate": [
+      "Subjective premium render feel, browser GPU upload cost, or live touch ergonomics.",
+      "Exact frame-time performance on physical devices."
+    ]
+  }
+}

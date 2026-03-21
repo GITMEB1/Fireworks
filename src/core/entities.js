@@ -492,12 +492,26 @@ export class PooledTarget {
   draw(ctx) {
     const lifeRatio = this.lifetimeMs > 0 ? (this.lifetimeMs - this.ageMs) / this.lifetimeMs : 0;
     const urgentPulse = this.isUrgent ? (0.5 + 0.5 * Math.sin(this.ageMs * 0.018)) : 0;
-    const ringAlpha = this.healthState === 'critical' ? 0.72 + urgentPulse * 0.18 : 0.48 + urgentPulse * 0.16;
+    const targetVfx = this.engine.config.TARGET_VISUALS || {};
+    const ringAlpha = this.healthState === 'critical'
+      ? (0.72 + urgentPulse * 0.18) * (targetVfx.criticalRingBoost || 1)
+      : 0.48 + urgentPulse * 0.16;
     const crackAlpha = Math.min(0.95, this.fractureProgress * 1.18);
+    const haloAlpha = (targetVfx.haloAlpha || 0.18) * (this.isUrgent ? 1.2 : 1) * (this.healthState === 'critical' ? 1.1 : 1);
+    const haloScale = targetVfx.haloScale || 1.16;
 
     ctx.save();
     ctx.translate(this.x, this.y);
     ctx.rotate(this.rotation);
+
+    const halo = ctx.createRadialGradient(0, 0, this.radius * 0.2, 0, 0, this.radius * haloScale);
+    halo.addColorStop(0, `rgba(${this.color},${haloAlpha})`);
+    halo.addColorStop(0.72, `rgba(${this.color},${haloAlpha * 0.22})`);
+    halo.addColorStop(1, `rgba(${this.color},0)`);
+    ctx.fillStyle = halo;
+    ctx.beginPath();
+    ctx.arc(0, 0, this.radius * haloScale, 0, Math.PI * 2);
+    ctx.fill();
 
     ctx.fillStyle = `rgb(${this.color})`;
     ctx.beginPath();
@@ -518,6 +532,26 @@ export class PooledTarget {
     ctx.arc(0, 0, this.radius * 0.92, 0, Math.PI * 2);
     ctx.stroke();
 
+    if (this.kind === 'armored') {
+      ctx.strokeStyle = `rgba(200,225,255,${targetVfx.accentAlpha || 0.2})`;
+      ctx.lineWidth = Math.max(1.2, this.radius * 0.12);
+      ctx.setLineDash([Math.max(4, this.radius * 0.3), Math.max(3, this.radius * 0.18)]);
+      ctx.beginPath();
+      ctx.arc(0, 0, this.radius * 1.1, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    } else if (this.kind === 'priority') {
+      ctx.strokeStyle = `rgba(255,215,140,${targetVfx.accentAlpha || 0.2})`;
+      ctx.lineWidth = Math.max(1, this.radius * 0.1);
+      ctx.beginPath();
+      ctx.moveTo(0, -this.radius * 1.3);
+      ctx.lineTo(this.radius * 0.18, -this.radius * 1.08);
+      ctx.lineTo(0, -this.radius * 0.88);
+      ctx.lineTo(-this.radius * 0.18, -this.radius * 1.08);
+      ctx.closePath();
+      ctx.stroke();
+    }
+
     if (this.fractureProgress > 0.08) {
       ctx.strokeStyle = `rgba(255,245,230,${0.32 + crackAlpha * 0.4})`;
       ctx.lineWidth = Math.max(0.9, this.radius * 0.1);
@@ -534,7 +568,7 @@ export class PooledTarget {
 
     const lifeArcAlpha = this.isUrgent ? 0.95 : 0.42;
     ctx.strokeStyle = `rgba(255,220,130,${lifeArcAlpha})`;
-    ctx.lineWidth = Math.max(1, this.radius * 0.16);
+    ctx.lineWidth = Math.max(1, this.radius * 0.16 * (targetVfx.lifeArcWidthBoost || 1));
     ctx.beginPath();
     ctx.arc(0, 0, this.radius * 1.16, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.max(0.05, lifeRatio));
     ctx.stroke();
@@ -543,6 +577,13 @@ export class PooledTarget {
     ctx.beginPath();
     ctx.arc(-this.radius * 0.3, -this.radius * 0.25, this.radius * 0.33, 0, Math.PI * 2);
     ctx.fill();
+
+    ctx.fillStyle = `rgba(255,255,255,${targetVfx.glyphAlpha || 0.7})`;
+    ctx.font = `${Math.max(10, this.radius * 0.9)}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    if (this.kind === 'priority') ctx.fillText('!', 0, 0);
+    else if (this.kind === 'armored') ctx.fillText('◈', 0, 0);
 
     ctx.restore();
   }

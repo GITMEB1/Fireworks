@@ -1,6 +1,7 @@
 export const CALIBRATION_SCENARIOS = [
   {
     id: 'desktop-high-quality',
+    runtimeProfileId: 'desktop-default',
     description: 'Desktop baseline with full quality and reduced motion disabled.',
     width: 1280,
     height: 720,
@@ -18,7 +19,27 @@ export const CALIBRATION_SCENARIOS = [
     }
   },
   {
+    id: 'high-end-mobile-premium',
+    runtimeProfileId: 'high-end-mobile-premium',
+    description: 'Capable phone/tablet profile with DPR 3 headroom, premium render tuning, and tighter touch-first tension.',
+    width: 430,
+    height: 932,
+    qualityScale: 0.96,
+    reducedMotion: false,
+    qualityEnabled: true,
+    strategy: {
+      directHitChance: 0.49,
+      glancingHitChance: 0.14,
+      supernovaChance: 0.22,
+      dirtyShotChance: 0.1,
+      missChance: 0.1,
+      finishBoost: 0.18,
+      targetBias: 'priority-first'
+    }
+  },
+  {
     id: 'reduced-motion',
+    runtimeProfileId: 'mobile-balanced',
     description: 'Reduced-motion path with quality clamped to the runtime reduced-motion scale.',
     width: 1280,
     height: 720,
@@ -37,6 +58,7 @@ export const CALIBRATION_SCENARIOS = [
   },
   {
     id: 'low-end-emulation',
+    runtimeProfileId: 'mobile-balanced',
     description: 'Fixed low-end emulation with constrained quality scale and slightly noisier execution.',
     width: 960,
     height: 540,

@@ -29,7 +29,8 @@ jobs:
       - name: Upload calibration artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: deterministic-calibration-artifacts
+          name: deterministic-calibration-${{ github.sha }}
           path: |
             fireworks-engine/runs/latest-deterministic-calibration-data.json
             fireworks-engine/runs/latest-deterministic-calibration-pass.md
+            fireworks-engine/runs/latest-deterministic-calibration-manifest.json

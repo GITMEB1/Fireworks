@@ -33,6 +33,7 @@ function summarizeScenario({ scenario, records, calibrationBands }) {
   ].filter((bucket) => totals[bucket] > 0).length;
   const meanPressurePeak = mean(totals.pressurePeak);
   const meanTotalScore = mean(totals.totalScore);
+  const meanQualityScale = mean(totals.avgQualityScale);
 
   const bandChecks = {
     hitSignal: hitMean >= calibrationBands.minimumMeanHitsPerRun,
@@ -46,10 +47,12 @@ function summarizeScenario({ scenario, records, calibrationBands }) {
 
   return {
     scenarioId: scenario.id,
+    runtimeProfileId: scenario.runtimeProfileId || 'desktop-default',
     description: scenario.description,
     runCount: count,
     meanTotalScore,
     meanPressurePeak,
+    meanQualityScale,
     failRate,
     meanHitsPerRun: hitMean,
     nonZeroScoreBuckets,
@@ -75,13 +78,22 @@ function sumRecords(records) {
     dirtyShotCount: 0,
     targetExpiryCount: 0,
     priorityExpiryCount: 0,
-    pressurePeak: 0
+    pressurePeak: 0,
+    avgQualityScale: 0,
+    budgetDeniedByChannel: {}
   };
 
   return records.reduce((acc, record) => {
     for (const key of Object.keys(initial)) {
+      if (key === 'budgetDeniedByChannel') continue;
       acc[key] += record[key] || 0;
     }
+
+    const denied = record.budgetDeniedByChannel || {};
+    for (const [channel, count] of Object.entries(denied)) {
+      acc.budgetDeniedByChannel[channel] = (acc.budgetDeniedByChannel[channel] || 0) + count;
+    }
+
     return acc;
   }, initial);
 }
