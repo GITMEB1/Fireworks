@@ -1,80 +1,106 @@
-# Workstream C — Seam integrity audit
+# Workstream C — seam integrity
+
+## direct observation baseline
+- The repository's physical architecture is strongly directory-seamed: `src/app`, `src/core`, `src/render`, `src/systems`, `src/shells`, `src/effects`, `src/patterns`, and `src/runtime-vnext` are real module boundaries.
+- `src/main.js` is thin and `src/app/createFireworksApp.js` acts as the composition root.
+- `src/ARCHITECTURE.md` names app, engine, shell, death behavior, pattern, and render seams.
+- `fireworks-engine/SEAM_MAP.md` models input, core simulation, render, behavior, audio, quality/performance, and app composition seams.
+- The live runtime includes `src/runtime-vnext/*`, which owns renderer selection, events, budgets, fallback, and adapter composition.
 
 ## strongest seam
-**Behavior seam**
 
-### Direct observation
-- `src/shells/registry.js`, `src/effects/deathBehaviors.js`, and `src/patterns/launchPatterns.js` are physically separated modules with distinct responsibilities.
-- `src/ARCHITECTURE.md` names those modules as extensibility seams.
-- Multiple run artifacts bind work to this seam without needing broad app rewiring (`fireworks-engine/runs/leap-forward-upgrade-plan.md`, `fireworks-engine/runs/bssds-phase1-2-prototype.md`).
+### direct observation
+- The behavior seam is physically cohesive: `src/shells/registry.js`, `src/effects/deathBehaviors.js`, and `src/patterns/launchPatterns.js` hold shell families, death choreography, and launch orchestration.
+- This seam is explicitly called out in both `src/ARCHITECTURE.md` and `fireworks-engine/SEAM_MAP.md`.
+- The shell/effect/pattern modules are extension-friendly and visibly isolated from DOM boot code.
 
-## weakest seam
-**Audio seam**
+### inference
+- **Strongest seam: behavior seam.** It is both documented and structurally real, and it appears usable without broad framework churn.
 
-### Direct observation
-- `src/systems/audioSystem.js` exists, but audio integration is thin relative to other seams.
-- Audio is composed centrally in `src/app/createFireworksApp.js` and called from `src/core/engine.js` and `src/effects/deathBehaviors.js`, so ownership is split across app/core/effects.
-- The seam map lists audio, but there are few run artifacts centered on it compared with core/render/behavior.
+## weakest documented seam
 
-### Inference
-- Audio is a real module boundary, but not yet a strong planning seam for iterative work.
+### direct observation
+- `src/runtime-vnext/*` is live in the composition root but absent from `fireworks-engine/SEAM_MAP.md` and `src/ARCHITECTURE.md`.
+- `src/app/createFireworksApp.js` depends on runtime-vnext for mode selection, budgets, events, metrics hooks, and renderer adapter wiring.
+- The docs still describe app composition and render as if that boundary is simpler than the current code reality.
+
+### inference
+- **Weakest documented seam: runtime composition / runtime-vnext seam as documented.** The code seam exists, but the governance model under-documents it, which weakens seam truthfulness.
 
 ## most overloaded seam
-**Core simulation seam**
 
-### Direct observation
-- `src/core/engine.js` owns state, pools, objective scoring, runtime events, budgets, launch scheduling, target interactions, shot registration, and multiple spawn pathways.
-- `src/core/entities.js` contains physics, trail rendering state, target fragments, and config-driven motion behavior.
-- Multiple documented opportunities and passes converge on `src/core/engine.js`, indicating it is a frequent convergence point rather than a narrow domain seam.
+### direct observation
+- `src/core/engine.js` owns a very large share of runtime behavior: pools, launch queueing, shot registration, objective state, scoring, pressure, target spawning, shatter accounting, runtime events, budget requests, fever state, and update orchestration.
+- The core simulation seam in `fireworks-engine/SEAM_MAP.md` already warns it is heavily coupled to shell/effect APIs.
+
+### inference
+- **Most overloaded seam: core simulation seam, especially `src/core/engine.js`.** It is still the gravity well of gameplay state, scoring, pressure logic, and many coordination responsibilities.
 
 ## seam with highest gameplay leverage
-**Core simulation seam**
 
-### Direct observation
-- Objective loop, hit-quality scoring, shot outcomes, target pressure, and launch scheduling all live in `src/core/engine.js`.
-- Input eventually resolves into engine calls (`src/systems/inputSystem.js` -> `engine.registerShot(...)`, `engine.spawnShellTo(...)`).
-- Many high-impact passes target core simulation (`fireworks-engine/runs/objective-loop-mvp-pass.md`, `fireworks-engine/runs/opp-002-dirty-burst-pass.md`, `fireworks-engine/runs/destructible-targets-tuning-pass.md`).
+### direct observation
+- `src/core/config.js` enables the objective loop and exposes dense gameplay economy knobs for pressure, hit quality, combo, shatter, phase timing, target health, and failure.
+- `src/core/engine.js` implements objective pressure, scoring, target lifecycle, shot registration, and fail/restart logic.
+- `src/render/overlayRenderer.js` makes those objective states visible to the player.
+
+### inference
+- **Highest gameplay leverage seam: core simulation seam.** Small changes there materially alter one-session gameplay, reward structure, and retention.
 
 ## seam with highest performance sensitivity
-**Render seam, closely followed by quality/performance seam**
 
-### Direct observation
-- `src/render/renderer.js` contains the dynamic bloom pass, render ordering, and per-frame compositing.
-- `src/systems/qualitySystem.js` adjusts adaptive quality every frame based on frame samples.
-- `fireworks-engine/runs/flicker-perf-audit.md` and `fireworks-engine/runs/flicker-perf-fix-pass.md` target render plus quality together.
+### direct observation
+- `fireworks-engine/SEAM_MAP.md` identifies render and quality/performance as frame-budget-sensitive seams.
+- `src/render/renderer.js` runs dynamic bloom with cadence throttling and load-aware fading.
+- `src/systems/qualitySystem.js` adaptively changes quality scale based on frame timing.
+- `src/runtime-vnext/contracts/runtimeBudgetManager.js` and runtime-vnext event/budget wiring are live participants in cap enforcement.
+- `src/runtime-vnext/renderers/webgl2PrototypeRendererAdapter.js` still uploads the overlay canvas as a texture each frame while mixing Canvas2D overlay rendering with GPU transients.
 
-### Inference
-- Render is the highest per-frame cost center; quality/perf is the control seam that throttles pressure on the rest of the system.
+### inference
+- **Highest performance sensitivity seam: render + runtime-vnext boundary.** The performance story now crosses old render code and new adapter/budget code, which the official seam docs do not fully admit.
 
 ## seam with most hidden complexity
-**App composition seam**
 
-### Direct observation
-- `src/app/createFireworksApp.js` wires config, state, audio, runtime-vnext, engine, resize, quality, input, reduced motion, metrics, renderer stats, DOM dataset diagnostics, and loop lifecycle.
-- `fireworks-engine/SEAM_MAP.md` describes app composition as broad blast radius, but does not mention runtime-vnext even though the app composition root now depends on it.
-- Runtime-vnext contracts, adapters, and budgets are injected from app composition, making the app seam a gateway to multiple systems.
+### direct observation
+- `src/runtime-vnext/createRuntimeVNext.js` looks small, but it activates event buses, budget management, renderer selection, fallback logic, and adapter differences.
+- `src/app/createFireworksApp.js` stores renderer mode/fallback/debug state on canvas dataset fields and hooks run metrics collection to runtime-vnext events.
+- `src/runtime-vnext/renderers/webgl2PrototypeRendererAdapter.js` is explicitly hybrid: background and overlay work still happen on a 2D canvas that is uploaded into WebGL every frame, while transients render on GPU.
 
-### Inference
-- App composition looks small in file count but hides significant cross-seam coupling and upgrade risk.
+### inference
+- **Most hidden complexity: runtime-vnext seam.** It is understated in docs but materially shapes architecture, performance behavior, and verification needs.
 
-## evidence list with exact file paths
+## seam integrity verdict
+
+### direct observation
+- The repo's major seams are real in physical code layout.
+- The documented seam map largely matches legacy Canvas2D-era architecture.
+- The docs do not fully model the newer runtime-vnext layer that now mediates rendering and performance decisions.
+
+### inference
+- Seam integrity is **good but not fully current**.
+- The strongest seams are behavior and render submodules.
+- The riskiest under-modeled seam is runtime-vnext, because it is already production-relevant in composition but still treated like an implementation detail rather than a first-class architectural seam.
+
+## exact evidence list with file paths
+- `fireworks-engine/SEAM_MAP.md`
 - `src/ARCHITECTURE.md`
-- `src/app/createFireworksApp.js`
 - `src/main.js`
-- `src/systems/inputSystem.js`
-- `src/systems/audioSystem.js`
-- `src/systems/qualitySystem.js`
+- `src/app/createFireworksApp.js`
+- `src/app/appState.js`
+- `src/app/runMetricsCollector.js`
+- `src/core/config.js`
 - `src/core/engine.js`
 - `src/core/entities.js`
 - `src/render/renderer.js`
-- `src/render/backgroundRenderer.js`
 - `src/render/overlayRenderer.js`
+- `src/systems/qualitySystem.js`
+- `src/systems/inputSystem.js`
+- `src/systems/audioSystem.js`
 - `src/shells/registry.js`
 - `src/effects/deathBehaviors.js`
 - `src/patterns/launchPatterns.js`
 - `src/runtime-vnext/createRuntimeVNext.js`
-- `fireworks-engine/SEAM_MAP.md`
-- `fireworks-engine/runs/leap-forward-upgrade-plan.md`
-- `fireworks-engine/runs/objective-loop-mvp-pass.md`
-- `fireworks-engine/runs/flicker-perf-fix-pass.md`
-- `fireworks-engine/runs/post-leap-stability-audit.md`
+- `src/runtime-vnext/contracts/rendererAdapter.js`
+- `src/runtime-vnext/contracts/runtimeBudgetManager.js`
+- `src/runtime-vnext/contracts/runtimeEvents.js`
+- `src/runtime-vnext/renderers/canvas2dRendererAdapter.js`
+- `src/runtime-vnext/renderers/webgl2PrototypeRendererAdapter.js`

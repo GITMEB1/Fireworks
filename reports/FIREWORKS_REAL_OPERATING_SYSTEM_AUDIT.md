@@ -1,104 +1,112 @@
-# FIREWORKS REAL OPERATING SYSTEM AUDIT
+# Fireworks real operating system audit
 
 ## 1. Executive verdict
-Fireworks is **not** just doing a cosmetic rename from PromptFactory. The repo has a real Fireworks-native planning layer centered on code seams, game-specific opportunity scoring, and run artifacts. But the migration is **partial, not complete**: PromptFactory-derived process structures still exist in `.agents/`, the `PromptFactory` gitlink still exists, and the new operating layer does not yet fully match the practical architecture now present in `src/`.
+
+### direct observation
+- Fireworks has a real repo-native operating layer in `fireworks-engine/` and a real modular game runtime in `src/`.
+- The repo is no longer governed primarily by a populated `PromptFactory` checkout.
+- The migration is incomplete because `.agents/*` remains an alternate governance surface and the `PromptFactory` gitlink still exists.
+- The documented seam model lags behind the live architecture because `src/runtime-vnext/*` is operational but not first-class in the official seam map.
+- Verification maturity is mixed: runtime safeguards exist, but CI/package enforcement is thin.
+
+### inference
+Fireworks has **genuinely moved beyond generic PromptFactory governance**, but it has **not fully consolidated** into a single current operating system. The repo's real OS today is a **Fireworks-native seam-bound planning layer anchored in `AGENTS.md` and `fireworks-engine/*`, executed against a real modular runtime in `src/*`, with leftover PromptFactory-era residue still present and insufficiently archived**.
 
 ## 2. What the repo says it is
-### Direct observation
-- `AGENTS.md` says `fireworks-engine/` is the operating layer for planning, seam binding, evaluation, and reporting.
-- `fireworks-engine/README.md` says it replaces generic PromptFactory-style process docs with a lean, seam-bound system.
-- `fireworks-engine/MIGRATION.md` says legacy PromptFactory-style docs are historical reference.
+- `AGENTS.md` says `fireworks-engine/` is the operating layer and that work should be planning-first, seam-bound, and reported via concise run artifacts.
+- `fireworks-engine/README.md` says the repo replaced generic PromptFactory-style docs with a lean, Fireworks-native system centered on real source seams.
+- `fireworks-engine/OPERATING_MODEL.md` says execution follows seven stages from opportunity framing to evaluation.
+- `fireworks-engine/MIGRATION.md` says legacy PromptFactory-style content is historical reference, not the default path.
 
 ## 3. What the repo actually appears to be
-### Direct observation
-- The runtime is a game codebase with real modular seams under `src/` and an active hybrid lane in `src/runtime-vnext/*`.
-- Governance is split across four visible layers: root `AGENTS.md`, `fireworks-engine/*`, `.agents/*`, and the `PromptFactory` gitlink.
-- `fireworks-engine/runs/` is the dominant current artifact library, but `.agents/workflows/*` still exposes a different canonical process.
-
-### Inference
-- The repo is currently a **Fireworks-native seam-bound planning system layered on top of partially retired PromptFactory-era governance residue**.
+- A real browser game codebase with modular seams in `src/*`.
+- A serious repo-local planning/reporting layer in `fireworks-engine/*`.
+- A partially retired but still visible PromptFactory-era workflow layer in `.agents/*`.
+- A vestigial `PromptFactory` gitlink that is not operational in this checkout.
+- A codebase whose current architecture includes runtime-vnext composition and hybrid render paths beyond what the official seam docs fully describe.
 
 ## 4. The real source of truth today
-### Direct observation
-- For agent work, the practical guidance entrypoint is `AGENTS.md`.
-- For runtime truth, the source of truth is the code path rooted at `src/main.js` and `src/app/createFireworksApp.js`.
-- For planning truth, `fireworks-engine/*` is the active repo-native layer.
-- PromptFactory itself is not directly operative in this checkout because it is only a gitlink.
 
-### Verdict
-The real source of truth today is **root `AGENTS.md` plus `fireworks-engine/*`, validated against the actual code in `src/`**.
+### direct observation
+- Runtime truth starts at `src/main.js` and `src/app/createFireworksApp.js`.
+- Repo operating truth starts at `AGENTS.md` and then `fireworks-engine/*`.
+- Old `.agents/*` content is still present, but current top-level instructions point elsewhere.
+- `PromptFactory` proper is not practically usable here.
+
+### inference
+The real source of truth order today is:
+1. **Root operating instruction:** `AGENTS.md`.
+2. **Current governance layer:** `fireworks-engine/OPERATING_MODEL.md`, `TASK_TYPES.md`, `SEAM_MAP.md`, `EVAL_GATES.md`, scored backlog, and recent `fireworks-engine/runs/*`.
+3. **Actual executable architecture:** `src/main.js`, `src/app/createFireworksApp.js`, then seam-local source modules.
+4. **Historical secondary evidence:** `.agents/*`.
+5. **Vestigial artifact:** `PromptFactory` gitlink.
 
 ## 5. Migration verdict
-**Partial migration with overlap**
 
-### Reconciliation
-- Workstream A shows `fireworks-engine/` is the declared default authority.
-- Workstream B shows the new layer is genuinely more seam-bound and product-specific than PromptFactory.
-- The overlap remains real because `.agents/` still carries canonical PromptFactory language and the gitlink still exists.
+### inference
+**Migration verdict: partial migration with overlap.**
+- It is not merely cosmetic because Fireworks now uses game-native scoring, seam binding, repo-local prompts, and architecture-coupled run artifacts.
+- It is not complete because old PromptFactory-style workflows are still committed and the `PromptFactory` gitlink still exists.
 
 ## 6. Seam integrity verdict
-**Mostly real, but incomplete at the map level**
 
-### Direct observation
-- Input, core, render, behavior, audio, quality/perf, and app composition are all visible in code.
-- The official seam map omits the now-active `src/runtime-vnext/*` seam, even though app composition, render, budgets, metrics, and prototype evolution depend on it.
-- `src/core/engine.js` and `src/app/createFireworksApp.js` remain major convergence files.
-
-### Verdict
-The seam model is real enough to plan scoped gameplay work, but it under-describes current runtime architecture and hides coupling in app composition/core.
+### inference
+**Seam integrity verdict: mostly real, but the docs are behind the architecture.**
+- Behavior, render, and app/core separation are materially real.
+- `src/runtime-vnext/*` is an architectural fact but not yet a first-class documented seam.
+- `src/core/engine.js` remains overloaded and should be treated as a high-risk seam regardless of how clean the surrounding directory structure looks.
 
 ## 7. Verification maturity verdict
-**Partially operational**
 
-### Direct observation
-- The repo has runtime instrumentation, metrics collection, structured schemas, and many run artifacts.
-- The repo lacks standard automated quality enforcement: no `test`, `lint`, `build`, or typecheck scripts are defined in `package.json`.
-
-### Verdict
-Verification is not documentary-only, but it is far less enforced than the documentation language suggests.
+### inference
+**Verification maturity verdict: partially operational.**
+- Runtime has real safeguards: adaptive quality, runtime budgets, fallback rendering, reduced-motion handling, calibration export.
+- Repository automation is underpowered: no real test/lint/build pipeline, no strongly enforced CI validation before deploy.
 
 ## 8. Throughput verdict
-**Accelerates planning but slows implementation**
 
-### Reconciliation
-- Workstream E found the seam-bound docs useful for turning ideas into bounded work.
-- Workstream D found weak automation, so documentation burden is not repaid by strong enforcement.
-- The result is good planning clarity with lingering governance drag.
+### inference
+**Throughput verdict: accelerates planning but slows implementation.**
+- The Fireworks-native layer makes non-trivial work easier to frame and hand off.
+- Governance overlap and weak automation create drag once work moves from planning to execution.
 
 ## 9. Top 5 strongest findings
-1. `fireworks-engine/` is a real repo-native planning layer, not just a superficial rename (`AGENTS.md`, `fireworks-engine/README.md`, `fireworks-engine/SEAM_MAP.md`).
-2. The source tree genuinely supports seam-bound work across input/core/render/behavior/quality/app (`src/ARCHITECTURE.md`, `src/*`).
-3. Opportunity scoring has been materially specialized for this game, using delight/spectacle/clarity/retention and mobile/perf tradeoffs (`fireworks-engine/opportunities/scored_backlog.yaml`).
-4. Runtime-vnext is not hypothetical; it is live code with adapters, budgets, events, fallback logic, and metrics hooks (`src/runtime-vnext/*`, `src/app/createFireworksApp.js`).
-5. The repo has a strong habit of evidence capture via run artifacts, especially in `fireworks-engine/runs/`.
+1. The repo now has a real Fireworks-native operating layer, not just renamed generic docs.
+2. The source tree really is seam-local and game-specific enough to support that operating layer.
+3. `PromptFactory` itself is non-operative in this checkout; it survives only as a gitlink artifact.
+4. `fireworks-engine/opportunities/scored_backlog.yaml` is clear evidence of genuine domain-specific prioritization rather than generic process carryover.
+5. Runtime safeguards are real inside the app even though repository-level enforcement is weak.
 
 ## 10. Top 5 highest-risk weaknesses
 1. Governance overlap remains unresolved: `AGENTS.md`, `fireworks-engine/*`, `.agents/*`, and `PromptFactory` all still exist.
-2. The official seam map is already behind reality because it omits `src/runtime-vnext/*`.
-3. `src/core/engine.js` is heavily overloaded and acts as a cross-seam convergence point.
-4. Evaluation doctrine is much stronger than automated enforcement.
-5. Audio is declared as a seam but still looks structurally weak and sparsely exercised.
+2. Official seam documentation understates the importance of `src/runtime-vnext/*`.
+3. `src/core/engine.js` is an overloaded coordination seam and a likely future regression hotspot.
+4. Verification language is stronger than verification automation.
+5. CI/deployment configuration is weakly aligned with the repo's stated rigor; Pages deploys with no checks and Azure relies on mostly absent scripts.
 
 ## 11. Recommendations
+
 ### retain
-- Keep `AGENTS.md` as the top-level operator handoff.
-- Keep `fireworks-engine/SEAM_MAP.md`, `TASK_TYPES.md`, and the scored opportunity backlog.
-- Keep run artifacts in `fireworks-engine/runs/` as the main historical execution trail.
+- Keep `AGENTS.md` as the top-level operator contract.
+- Keep `fireworks-engine/*` as the repo-native planning/reporting layer.
+- Keep scored backlog plus concise run artifacts.
+- Keep runtime guardrails in quality, budget, and fallback systems.
 
 ### collapse
-- Collapse authority so one surface clearly supersedes `.agents/workflows/*` for current work.
-- Fold `runtime-vnext` into the official seam model instead of leaving it documented only in run reports.
-- Reduce duplicated migration commentary across `README.md`, `MIGRATION.md`, `AUDIT_SUMMARY.md`, and older run artifacts.
+- Collapse authority so `.agents/*` is clearly historical or clearly deleted from the active path.
+- Collapse seam documentation so `src/runtime-vnext/*` is explicitly modeled in `fireworks-engine/SEAM_MAP.md` and reflected in `src/ARCHITECTURE.md`.
+- Collapse redundant workflow language so contributors do not have to reconcile two governance dialects.
 
 ### automate
-- Add a deterministic engine/runtime-event validation script and wire it into `package.json`.
-- Add at least one automated syntax/build/verification script that CI can actually enforce.
-- Promote existing metrics/event plumbing into repeatable checks for calibration and fallback behavior.
+- Add at least one real validation script to `package.json` and run it in CI.
+- Gate deployment on that script.
+- Add a lightweight import/syntax/smoke check to convert current documentary rigor into enforced rigor.
 
 ### delete/archive
-- Archive `.agents/workflows/*` as legacy if they are no longer intended as active operator entrypoints.
-- Archive or explicitly de-emphasize the `PromptFactory` gitlink if it is no longer part of the real workflow.
-- Archive stale run/process artifacts whose guidance is now contradicted by `AGENTS.md`.
+- Archive or explicitly de-emphasize `.agents/workflows/*` and older `.agents/runs/*` if they are no longer part of the live operator path.
+- Archive or remove the broken/non-operative `PromptFactory` gitlink if it is no longer needed.
+- Archive stale reports that continue to describe old governance surfaces as active when they are meant to be historical.
 
 ## 12. Final conclusion: What the real operating system of Fireworks is today
-Fireworks' real operating system today is **a seam-bound, game-specific planning and reporting layer in `fireworks-engine/`, anchored by root `AGENTS.md`, and validated against a real modular game codebase in `src/`**. It is **not** pure PromptFactory anymore. But it is also **not yet a fully consolidated Fireworks-native OS**, because old PromptFactory-derived workflow surfaces still coexist, and the official process docs lag behind the actual runtime architecture now living in `src/runtime-vnext/*`.
+
+Fireworks' real operating system today is **a seam-bound, game-specific planning and reporting layer in `fireworks-engine/`, anchored by `AGENTS.md`, executed against a real modular runtime rooted in `src/main.js` and `src/app/createFireworksApp.js`, and supplemented by runtime guardrails inside the app itself**. It is **not PromptFactory anymore**. But it is also **not yet a fully consolidated Fireworks-native OS**, because old PromptFactory-derived workflow surfaces still coexist and the official seam model has not caught up to the actual runtime-vnext architecture.

@@ -54,7 +54,7 @@ export function createEngine({ config, palettes, state, audio, runtimeVNext = nu
   const runtimeBudgets = runtimeVNext?.budgets;
   let objectiveRunCounter = 0;
 
-  function createObjectiveMetricsState() {
+  function createObjectiveMetricsState(initialPressure = config.OBJECTIVE.initialPressure) {
     return {
       runId: `run-${Date.now()}-${++objectiveRunCounter}`,
       scoreBuckets: {
@@ -70,7 +70,7 @@ export function createEngine({ config, palettes, state, audio, runtimeVNext = nu
       dirtyShotCount: 0,
       targetExpiryCount: 0,
       priorityExpiryCount: 0,
-      pressurePeak: 18,
+      pressurePeak: initialPressure,
       ended: false
     };
   }
@@ -140,9 +140,10 @@ export function createEngine({ config, palettes, state, audio, runtimeVNext = nu
 
   function createObjectiveRunState() {
     const objectiveCfg = config.OBJECTIVE;
+    const initialPressure = objectiveCfg.initialPressure;
     return {
       score: 0,
-      pressure: 18,
+      pressure: initialPressure,
       combo: 0,
       comboTimerMs: 0,
       phase: 1,
@@ -159,14 +160,14 @@ export function createEngine({ config, palettes, state, audio, runtimeVNext = nu
       criticalTargets: 0,
       lastHitFeedback: '',
       lastHitFeedbackTimerMs: 0,
-      metrics: createObjectiveMetricsState()
+      metrics: createObjectiveMetricsState(initialPressure)
     };
   }
 
   function resetObjectiveRun() {
     const previousRun = state.objectiveRun;
     if (previousRun && previousRun.status === 'running' && previousRun.metrics && !previousRun.metrics.ended) {
-      endObjectiveRun('survive', 'reset');
+      endObjectiveRun('reset', 'reset');
     }
 
     state.objectiveRun = createObjectiveRunState();
