@@ -219,6 +219,9 @@ export class PooledFirework {
     this.history[this.histIndex + 1] = this.y;
     if (this.histCount < this.historyLength) this.histCount++;
 
+    const prevX = this.x;
+    const prevY = this.y;
+
     const isDirty = this.outcome === 'dirty';
     const profile = this.flightProfile || { dragMult: 1, gravityMult: 1, lateralDriftMult: 1 };
     const gravityMult = Math.max(0.92, Math.min(1.08, profile.gravityMult ?? 1));
@@ -235,6 +238,14 @@ export class PooledFirework {
     this.x += this.vx * timeScale;
     this.y += this.vy * timeScale;
     this.timeToTarget -= 1 * timeScale;
+
+    const contact = this.engine.resolveFireworkContact?.(this, prevX, prevY, this.x, this.y);
+    if (contact) {
+      this.x = contact.x;
+      this.y = contact.y;
+      this.engine.createExplosion(this.x, this.y, this.type, this.palette, this.charge, this.prestige);
+      return true;
+    }
 
     if (Math.random() < this.sparkRate) {
       this.engine.spawnAscentSpark(this.x, this.y, this.color, this.vx, this.vy, this.type, this.charge, this.prestige);
@@ -378,6 +389,7 @@ export class PooledTarget {
   init(x, y, radius, mass, color, objectiveProfile = null) {
     const objectiveCfg = this.engine.config.OBJECTIVE || {};
     this.x = x; this.y = y;
+    this.prevX = x; this.prevY = y;
     this.vx = rand(-1.2, 1.2); this.vy = rand(-0.6, 0.6);
     this.mass = Math.max(0.1, mass);
     this.radius = radius;
@@ -437,6 +449,8 @@ export class PooledTarget {
   }
   update(timeScale) {
     const { state, config } = this.engine;
+    this.prevX = this.x;
+    this.prevY = this.y;
     this.ageMs += timeScale * 16.666;
     this.hitFlashMs = Math.max(0, this.hitFlashMs - timeScale * 16.666);
     this.vy += config.gravity * timeScale;

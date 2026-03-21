@@ -193,6 +193,28 @@ export const CONFIG = {
       crackle: 'agile',
       spiral: 'agile',
       ghost: 'floaty'
+    },
+    shellContactCollision: {
+      enabled: true,
+      shellRadius: 4.5,
+      targetPadding: 1.5,
+      shellRadiusByType: {
+        default: 1,
+        peony: 1,
+        willow: 1.22,
+        ring: 0.96,
+        crossette: 0.96,
+        crackle: 0.98,
+        palm: 1.14,
+        spiral: 0.94,
+        brocade: 1.2,
+        ghost: 1.04,
+        doubleBreak: 1.18,
+        heart: 0.98,
+        star: 0.96,
+        smiley: 0.96,
+        dirty: 1.08
+      }
     }
   },
 
@@ -300,6 +322,14 @@ export function createConfig(overrides = {}) {
       shellFlightProfileByType: {
         ...CONFIG.PHYSICS.shellFlightProfileByType,
         ...((overrides.PHYSICS && overrides.PHYSICS.shellFlightProfileByType) || {})
+      },
+      shellContactCollision: {
+        ...CONFIG.PHYSICS.shellContactCollision,
+        ...((overrides.PHYSICS && overrides.PHYSICS.shellContactCollision) || {}),
+        shellRadiusByType: {
+          ...CONFIG.PHYSICS.shellContactCollision.shellRadiusByType,
+          ...(((overrides.PHYSICS && overrides.PHYSICS.shellContactCollision) || {}).shellRadiusByType || {})
+        }
       }
     },
     BSSDS: {

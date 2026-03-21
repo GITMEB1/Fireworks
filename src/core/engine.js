@@ -37,6 +37,7 @@ export function createEngine({ config, palettes, state, audio, runtimeVNext = nu
     flushLaunchQueue,
     triggerSupernova,
     registerShot,
+    resolveFireworkContact: null,
     onTargetDamaged,
     onTargetShattered,
     spawnTargetFragments,
@@ -547,6 +548,93 @@ export function createEngine({ config, palettes, state, audio, runtimeVNext = nu
     state.scheduledLaunches = pending;
   }
 
+  function getShellCollisionRadius(firework) {
+    const collisionCfg = config.PHYSICS?.shellContactCollision;
+    if (!collisionCfg?.enabled) return 0;
+
+    const baseRadius = Math.max(0, collisionCfg.shellRadius || 0);
+    const typeMult = collisionCfg.shellRadiusByType?.[firework.type]
+      ?? collisionCfg.shellRadiusByType?.default
+      ?? 1;
+
+    return baseRadius * typeMult;
+  }
+
+  function sweepMovingCircleContact({
+    startX,
+    startY,
+    endX,
+    endY,
+    targetStartX,
+    targetStartY,
+    targetEndX,
+    targetEndY,
+    combinedRadius
+  }) {
+    const relStartX = startX - targetStartX;
+    const relStartY = startY - targetStartY;
+    const relDeltaX = (endX - startX) - (targetEndX - targetStartX);
+    const relDeltaY = (endY - startY) - (targetEndY - targetStartY);
+    const radiusSq = combinedRadius * combinedRadius;
+    const startDistSq = relStartX * relStartX + relStartY * relStartY;
+
+    if (startDistSq <= radiusSq) {
+      return { t: 0 };
+    }
+
+    const a = relDeltaX * relDeltaX + relDeltaY * relDeltaY;
+    if (a <= 0.000001) return null;
+
+    const b = 2 * (relStartX * relDeltaX + relStartY * relDeltaY);
+    const c = startDistSq - radiusSq;
+    const discriminant = b * b - 4 * a * c;
+    if (discriminant < 0) return null;
+
+    const root = Math.sqrt(discriminant);
+    const t = (-b - root) / (2 * a);
+    if (t < 0 || t > 1) return null;
+    return { t };
+  }
+
+  function resolveFireworkContact(firework, startX, startY, endX, endY) {
+    const collisionCfg = config.PHYSICS?.shellContactCollision;
+    if (!collisionCfg?.enabled || activeCounts.targets <= 0) return null;
+
+    const shellRadius = getShellCollisionRadius(firework);
+    const targetPadding = Math.max(0, collisionCfg.targetPadding || 0);
+    let earliestContact = null;
+
+    for (let i = 0; i < activeCounts.targets; i++) {
+      const target = pools.targets[i];
+      if (!target || target.destructionState === 'shattered') continue;
+
+      const combinedRadius = shellRadius + targetPadding + target.radius;
+      const sweep = sweepMovingCircleContact({
+        startX,
+        startY,
+        endX,
+        endY,
+        targetStartX: target.prevX ?? target.x,
+        targetStartY: target.prevY ?? target.y,
+        targetEndX: target.x,
+        targetEndY: target.y,
+        combinedRadius
+      });
+
+      if (!sweep) continue;
+      if (earliestContact && sweep.t >= earliestContact.t) continue;
+
+      earliestContact = {
+        t: sweep.t,
+        x: startX + (endX - startX) * sweep.t,
+        y: startY + (endY - startY) * sweep.t,
+        target
+      };
+    }
+
+    return earliestContact;
+  }
+
   function compactAndUpdate(poolName, timeScale) {
     for (let i = activeCounts[poolName] - 1; i >= 0; i--) {
       if (pools[poolName][i].update(timeScale)) {
@@ -721,15 +809,17 @@ export function createEngine({ config, palettes, state, audio, runtimeVNext = nu
     }
     audio.updateCharge(maxCharge);
 
+    compactAndUpdate('targets', timeScale);
     compactAndUpdate('fireworks', timeScale);
     compactAndUpdate('particles', timeScale);
     compactAndUpdate('smokes', timeScale);
     compactAndUpdate('glows', timeScale);
     compactAndUpdate('embers', timeScale);
     compactAndUpdate('shockwaves', timeScale);
-    compactAndUpdate('targets', timeScale);
     compactAndUpdate('targetFragments', timeScale);
   }
+
+  engine.resolveFireworkContact = resolveFireworkContact;
 
   return engine;
 }
