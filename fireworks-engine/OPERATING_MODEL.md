@@ -30,7 +30,7 @@ This flow optimizes for shipping real Fireworks product improvements, not proces
 ## 6) Verification pass
 **Goal:** Prove behavior and quality before claiming success.
 - **Inputs:** changed code, `test_plan`.
-- **Outputs:** checks run, pass/fail notes, unresolved risks.
+- **Outputs:** checks run, pass/fail notes, unresolved risks. Prefer repo-local deterministic runners over browser-only capture when balance or telemetry claims matter.
 
 ## 7) Evaluation and next-step recommendation
 **Goal:** Close the loop with evidence and a concrete next move.

@@ -8,5 +8,5 @@ const app = createFireworksApp({
 
 app.start();
 
-// Intentional debug/calibration hook for browser-driven inspection and control.
+// Intentional browser debug hook; deterministic repo-local calibration is now the primary validation lane.
 if (typeof window !== 'undefined') window.__fireworksApp = app;

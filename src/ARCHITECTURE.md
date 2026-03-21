@@ -17,3 +17,8 @@
 ## Package extraction readiness
 - Core engine logic has no direct dependency on DOM nodes.
 - Rendering and input are separate layers that can be swapped or extracted.
+
+## Validation boundary
+- Deterministic calibration now runs repo-locally through `src/app/calibration/*` with real `src/core/engine.js` objective logic and `src/app/runMetricsCollector.js` telemetry.
+- Browser debug hooks remain available, but they are secondary to the seeded repo-local runner for balance and telemetry validation.
+- runtime-vnext events/budgets are shared by both browser runtime and headless calibration so balance reports use the same outcome/budget surfaces.
