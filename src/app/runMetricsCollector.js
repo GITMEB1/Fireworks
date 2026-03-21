@@ -1,6 +1,6 @@
 import { RUNTIME_EVENT_TYPES } from '../runtime-vnext/contracts/runtimeEventTypes.js';
 
-export function createRunMetricsCollector({ events, state }) {
+export function createRunMetricsCollector({ events, state, attachToWindow = true }) {
   const records = [];
   const budgetDeniedByRun = new Map();
   const qualitySamplesByRun = new Map();
@@ -105,7 +105,7 @@ export function createRunMetricsCollector({ events, state }) {
   };
 
   // Intentional calibration/debug hook for browser-driven run capture and review.
-  if (typeof window !== 'undefined') window.__fireworksCalibration = api;
+  if (attachToWindow && typeof window !== 'undefined') window.__fireworksCalibration = api;
 
   return api;
 }

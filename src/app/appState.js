@@ -1,16 +1,19 @@
-export function createAppState() {
+export function createAppState(overrides = {}) {
+  const hasWindow = typeof window !== 'undefined';
+  const reducedMotion = overrides.reducedMotion ?? (hasWindow && window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)').matches : false);
+
   return {
-    width: 0,
-    height: 0,
-    dpr: 1,
+    width: overrides.width ?? 0,
+    height: overrides.height ?? 0,
+    dpr: overrides.dpr ?? 1,
     hidden: false,
-    userInteracted: false,
+    userInteracted: overrides.userInteracted ?? false,
     autoLaunchTimer: 45,
     lastNow: 0,
     lastQualityAdjust: 0,
-    qualityScale: 1,
+    qualityScale: overrides.qualityScale ?? 1,
     fpsSamples: [],
-    reducedMotion: window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+    reducedMotion,
     suppressMouseUntil: 0,
     activePointers: new Map(),
     scheduledLaunches: [],
