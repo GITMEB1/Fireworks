@@ -41,6 +41,7 @@ export function createEngine({ config, palettes, state, audio, runtimeVNext = nu
     onTargetShattered,
     spawnTargetFragments,
     resetObjectiveRun,
+    finalizeObjectiveRun,
     isFever,
     createExplosion: null,
     dispatchDeathBehavior: null,
@@ -84,6 +85,7 @@ export function createEngine({ config, palettes, state, audio, runtimeVNext = nu
     const run = state.objectiveRun;
     if (!run?.metrics || run.metrics.ended) return;
     run.metrics.ended = true;
+    run.status = outcome === 'fail' ? 'failed' : (outcome === 'reset' ? 'reset' : (outcome === 'aborted' ? 'aborted' : outcome));
     emitRuntime(RUNTIME_EVENT_TYPES.objectiveRunEnded, {
       runId: run.metrics.runId,
       outcome,
@@ -181,6 +183,12 @@ export function createEngine({ config, palettes, state, audio, runtimeVNext = nu
       score: state.objectiveRun.score,
       pressure: state.objectiveRun.pressure
     });
+  }
+
+  function finalizeObjectiveRun(outcome = 'survive', reason = 'explicit-finalize') {
+    const run = state.objectiveRun;
+    if (!run || run.status !== 'running') return;
+    endObjectiveRun(outcome, reason);
   }
 
   if (!state.objectiveRun) resetObjectiveRun();
