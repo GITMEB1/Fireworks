@@ -46,7 +46,9 @@ export function createBackgroundRenderer({ canvas, ctx, config, state }) {
         alpha: rand(0.03, skyCfg.nebulaAlpha || 0.08),
         drift: rand(0.00008, 0.00022),
         offset: rand(0, Math.PI * 2),
-        color: i % 2 === 0 ? '70,110,255' : '255,90,185'
+        color: i % 2 === 0 ? '70,110,255' : '255,90,185',
+        // Cached canvas for zero-alloc per-frame rendering
+        _cachedCanvas: null
       });
     }
   }
@@ -75,6 +77,19 @@ export function createBackgroundRenderer({ canvas, ctx, config, state }) {
       bgCtx.beginPath();
       bgCtx.arc(band.x, band.y, band.radius, 0, Math.PI * 2);
       bgCtx.fill();
+      // Pre-render the band to a cached canvas to avoid per-frame gradient allocation
+      const bc = document.createElement('canvas');
+      const d = band.radius * 2;
+      bc.width = Math.ceil(d);
+      bc.height = Math.ceil(d);
+      const bctx = bc.getContext('2d');
+      const grad = bctx.createRadialGradient(d / 2, d / 2, 0, d / 2, d / 2, band.radius);
+      grad.addColorStop(0, `rgba(${band.color},${band.alpha})`);
+      grad.addColorStop(0.45, `rgba(${band.color},${band.alpha * 0.42})`);
+      grad.addColorStop(1, `rgba(${band.color},0)`);
+      bctx.fillStyle = grad;
+      bctx.fillRect(0, 0, bc.width, bc.height);
+      band._cachedCanvas = bc;
     }
 
     for (const s of stars) {
@@ -114,15 +129,12 @@ export function createBackgroundRenderer({ canvas, ctx, config, state }) {
     }
 
     for (const band of premiumBands) {
+      // Use cached canvas + globalAlpha for zero-alloc per-frame animation
+      if (!band._cachedCanvas) continue;
       const pulse = 0.65 + Math.sin(now * band.drift + band.offset) * 0.35;
-      const radius = band.radius * (0.94 + pulse * 0.08);
-      const halo = ctx.createRadialGradient(band.x, band.y, 0, band.x, band.y, radius);
-      halo.addColorStop(0, `rgba(${band.color},${band.alpha * 0.36 * pulse})`);
-      halo.addColorStop(1, `rgba(${band.color},0)`);
-      ctx.fillStyle = halo;
-      ctx.beginPath();
-      ctx.arc(band.x, band.y, radius, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.globalAlpha = 0.36 * pulse;
+      ctx.drawImage(band._cachedCanvas, band.x - band.radius, band.y - band.radius);
+      ctx.globalAlpha = 1.0;
     }
 
     for (const s of twinkleStars) {

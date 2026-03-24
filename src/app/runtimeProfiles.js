@@ -12,7 +12,7 @@ const RUNTIME_PROFILE_DEFINITIONS = {
     id: 'mobile-balanced',
     label: 'Mobile Balanced',
     configOverrides: {
-      DISPLAY: { dprCap: 2.2 },
+      DISPLAY: { dprCap: 1.5 },
       QUALITY: {
         minScale: 0.68,
         maxScale: 0.92,
@@ -51,7 +51,7 @@ const RUNTIME_PROFILE_DEFINITIONS = {
     },
     stateOverrides: {
       qualityScale: 0.84,
-      displayDprCap: 2.2
+      displayDprCap: 1.5
     }
   },
   'high-end-mobile-premium': {
