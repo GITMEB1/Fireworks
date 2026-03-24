@@ -26,10 +26,13 @@ export function createInputSystem({ canvas, hintEl, statusEl, palettes, state, c
     if (!p) return;
     
     // Slingshot logic: drag backwards to aim forwards
+    const isPortrait = state.height > state.width;
+    const yMult = isPortrait ? Math.max(1.5, (state.height / state.width) * 1.4) : 1.5;
+    
     const dragX = p.startX - x;
     const dragY = p.startY - y;
     p.targetX = p.startX + dragX * 1.5;
-    p.targetY = Math.max(state.height * 0.1, p.startY + dragY * 1.5);
+    p.targetY = Math.max(state.height * 0.1, p.startY + dragY * yMult);
 
     // Sparkler effect during drag (using current pointer x,y)
     const dx = x - p.x;

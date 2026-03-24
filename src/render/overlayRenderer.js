@@ -147,8 +147,10 @@ export function renderChargeVisuals({ ctx, now, activePointers, config, engine }
       const titleFont = isCompactHud ? '600 14px sans-serif' : '600 16px sans-serif';
       const bodyFont = isCompactHud ? '500 12px sans-serif' : '500 13px sans-serif';
       const miniFont = isCompactHud ? '500 11px sans-serif' : '500 12px sans-serif';
-      const timerX = isCompactHud ? pad + 12 : pad + panelW - 76;
-      const timerY = isCompactHud ? pad + 44 : pad + 24;
+      
+      // Timer and profile text aligned to the right side of the panel
+      const timerX = pad + panelW - (isCompactHud ? 70 : 76);
+      const timerY = pad + 24;
 
       ctx.fillStyle = 'rgba(10,14,26,0.62)';
       ctx.fillRect(pad, pad, panelW, panelH);
@@ -191,8 +193,10 @@ export function renderChargeVisuals({ ctx, now, activePointers, config, engine }
       }
 
       if (run.status === 'failed') {
+        const failW = Math.min(engine.state.width * 0.95, Math.max(320, engine.state.width * 0.6));
+        const failX = (engine.state.width - failW) / 2;
         ctx.fillStyle = 'rgba(12,8,18,0.76)';
-        ctx.fillRect(engine.state.width * 0.2, engine.state.height * 0.38, engine.state.width * 0.6, 96);
+        ctx.fillRect(failX, engine.state.height * 0.38, failW, 96);
         ctx.fillStyle = 'rgba(255,130,130,0.96)';
         ctx.font = '700 30px sans-serif';
         ctx.textAlign = 'center';
