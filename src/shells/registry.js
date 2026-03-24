@@ -272,7 +272,7 @@ export function createShellRegistry(engine) {
     }
   }
 
-  const shells = { peony: shellPeony, willow: shellWillow, ring: shellRing, crossette: shellCrossette, crackle: shellCrackle, palm: shellPalm, spiral: shellSpiral, brocade: shellBrocade, ghost: shellGhost, doubleBreak: shellDoubleBreak, fizzle: shellFizzle, heart: shellHeart, star: shellStar, smiley: shellSmiley, dirty: shellDirty };
+  const shells = { peony: shellPeony, willow: shellWillow, ring: shellRing, crossette: shellCrossette, crackle: shellCrackle, palm: shellPalm, spiral: shellSpiral, brocade: shellBrocade, ghost: shellGhost, doubleBreak: shellDoubleBreak, fizzle: shellFizzle, heart: shellHeart, star: shellStar, smiley: shellSmiley };
 
   function resolveSignatureContext(type, countMult) {
     const bssds = engine.config.BSSDS;
@@ -389,16 +389,9 @@ export function createShellRegistry(engine) {
     }
 
     if (type === 'dirty') {
-        const dirtyCfg = engine.config.CHARGE.dirty;
-        const degrade = dirtyCfg.minDegrade + (dirtyCfg.maxDegrade - dirtyCfg.minDegrade) * Math.min(1, Math.max(0, charge));
-        const impactPenalty = -0.2 - degrade * 0.2;
-        const radius = 72 + 28 * (1 - degrade);
-        applyExplosionImpactToTargets(x, y, radius, impactPenalty);
-
-        const flashAlpha = engine.state.reducedMotion ? 0.14 : 0.22;
-        engine.spawnFlash(x, y, '185,170,145', 32 + 18 * (1 - degrade), flashAlpha);
-        engine.spawnGlow(x, y, '145,132,108', 54 + 18 * (1 - degrade), 0.08, 0.022);
-        shells.dirty({ x, y, palette, countMult: 0.9 + (1 - degrade) * 0.4, degrade });
+        // Legacy fallback: treat as a normal low-quality explosion
+        applyExplosionImpactToTargets(x, y, 72, charge);
+        shells.peony({ x, y, palette, countMult: 0.6, velMult: 0.8, charge: 0, prestige: false });
         return;
     }
 
@@ -406,11 +399,7 @@ export function createShellRegistry(engine) {
     if (engine.isFever && engine.isFever()) {
         isFever = true;
         prestige = true;
-        palette = pick(engine.palettes); // Fever palette randomization (or specific high-end palette if desired)
-    }
-    
-    if (charge >= 1.0 && prestige && engine.triggerSupernova) {
-        engine.triggerSupernova(palette[0]);
+        palette = pick(engine.palettes);
     }
 
     const flashColor = palette[0];

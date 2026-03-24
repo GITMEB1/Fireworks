@@ -456,7 +456,7 @@ export function createEngine({ config, palettes, state, audio, runtimeVNext = nu
     run.comboTimerMs = config.OBJECTIVE.comboWindowMs;
 
     const comboMult = 1 + (run.combo - 1) * config.OBJECTIVE.comboBonusPerStep;
-    const perfectBonus = run.lastShotType === 'supernova' ? config.OBJECTIVE.scorePerfectBonus : 0;
+    const perfectBonus = run.lastShotType === 'perfect-ready' ? config.OBJECTIVE.scorePerfectBonus : 0;
     const criticalFinishBonus = hitMeta.wasCritical ? config.OBJECTIVE.scoreCriticalFinishBonus : 0;
     const shatterBonusBase = config.OBJECTIVE.scoreShatterBonus || 0;
     const shatterQualityMult = hitMeta.hitQuality === 'direct' ? 1.06 : (hitMeta.hitQuality === 'glancing' ? 0.74 : 0.9);
@@ -473,7 +473,7 @@ export function createEngine({ config, palettes, state, audio, runtimeVNext = nu
 
     run.phaseClears += 1;
     run.totalClears += 1;
-    const recovery = run.lastShotType === 'supernova' ? config.OBJECTIVE.pressureRecoveryOnPerfect : config.OBJECTIVE.pressureRecoveryOnClear;
+    const recovery = run.lastShotType === 'perfect-ready' ? config.OBJECTIVE.pressureRecoveryOnPerfect : config.OBJECTIVE.pressureRecoveryOnClear;
     const criticalRecovery = hitMeta.wasCritical ? config.OBJECTIVE.pressureRecoveryCriticalBonus : 0;
     run.pressure = clamp(run.pressure - recovery - criticalRecovery, 0, config.OBJECTIVE.maxPressure);
     markPressurePeak(run);
@@ -502,15 +502,17 @@ export function createEngine({ config, palettes, state, audio, runtimeVNext = nu
     state.flashColor = color || '255,255,255';
     state.sleepTimer = 60;
     audio.playBassDrop();
+
+    state.combo++;
+    if (state.combo >= 3) {
+      state.feverTimer = state.feverDuration;
+      state.combo = 0;
+    }
   }
 
   function registerShot(type) {
     if (state.objectiveRun) {
       state.objectiveRun.lastShotType = type;
-      if (type === 'dirty' && state.objectiveRun.status === 'running') {
-        state.objectiveRun.pressure = clamp(state.objectiveRun.pressure + config.OBJECTIVE.pressurePerDirtyShot, 0, config.OBJECTIVE.maxPressure);
-        if (state.objectiveRun.metrics) state.objectiveRun.metrics.dirtyShotCount += 1;
-      }
       markPressurePeak(state.objectiveRun);
     }
 
@@ -519,19 +521,13 @@ export function createEngine({ config, palettes, state, audio, runtimeVNext = nu
       runId: state.objectiveRun?.metrics?.runId || null
     });
 
-    if (type === 'supernova') {
-      state.combo++;
-      if (state.combo >= 3) {
-        state.feverTimer = state.feverDuration;
-        state.combo = 0; // Reset combo when entering Fever
-      }
-    } else {
-      // Normal or dirty shots reset the combo
+    if (type !== 'perfect-ready') {
       state.combo = 0;
-      if (type === 'dirty') {
-        state.overchargeCueTimer = config.CHARGE.dirty.cueDurationMs;
-      }
     }
+  }
+
+  function breakFeverCombo() {
+    state.combo = 0;
   }
 
   function isFever() {
@@ -790,9 +786,7 @@ export function createEngine({ config, palettes, state, audio, runtimeVNext = nu
     if (state.feverTimer > 0) {
       state.feverTimer -= timeScale * 16.66;
     }
-    if (state.overchargeCueTimer > 0) {
-      state.overchargeCueTimer -= timeScale * 16.66;
-    }
+
 
     // Sputter sparks for active pointers
     let maxCharge = 0;
@@ -820,6 +814,7 @@ export function createEngine({ config, palettes, state, audio, runtimeVNext = nu
   }
 
   engine.resolveFireworkContact = resolveFireworkContact;
+  engine.breakFeverCombo = breakFeverCombo;
 
   return engine;
 }

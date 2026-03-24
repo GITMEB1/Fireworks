@@ -25,14 +25,9 @@ export const CONFIG = {
     minDuration: 180,
     maxDuration: 1450,
     maxMultiplier: 2.25,
-    maxVelMultiplier: 1.45,
+    maxVelMultiplier: 1.8,
     prestigeThreshold: 0.9,
-    dirty: {
-      overchargeWindowMs: 650,
-      minDegrade: 0.35,
-      maxDegrade: 0.75,
-      cueDurationMs: 800
-    }
+    perfectReadyThreshold: 0.92
   },
 
 
@@ -115,7 +110,7 @@ export const CONFIG = {
     warningPressure: 72,
     failPressure: 100,
     pressurePerExpire: 22,
-    pressurePerDirtyShot: 10,
+
     pressureDecayPerSecond: 1.1,
     pressureRecoveryOnClear: 6,
     pressureRecoveryOnPerfect: 8,

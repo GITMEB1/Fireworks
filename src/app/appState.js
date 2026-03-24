@@ -27,7 +27,7 @@ export function createAppState(overrides = {}) {
     screenShakeTimer: 0,
     flashTimer: 0,
     flashColor: '255,255,255',
-    overchargeCueTimer: 0,
+
     objectiveRun: null,
     runtimeRendererDebug: null
   };

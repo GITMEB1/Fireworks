@@ -58,33 +58,17 @@ export function createInputSystem({ canvas, hintEl, statusEl, palettes, state, c
 
     const duration = performance.now() - p.startTime;
     let charge = 0;
-    let rawCharge = 0;
-    let chargeState = 'normal';
-    
+
     if (duration >= config.CHARGE.minDuration) {
-      rawCharge = (duration - config.CHARGE.minDuration) / (config.CHARGE.maxDuration - config.CHARGE.minDuration);
+      const rawCharge = (duration - config.CHARGE.minDuration) / (config.CHARGE.maxDuration - config.CHARGE.minDuration);
       charge = Math.min(1, rawCharge);
-      if (rawCharge >= 1.0) {
-        chargeState = 'overcharge';
-      } else if (rawCharge >= 0.95 && rawCharge < 1.0) {
-        chargeState = 'perfect';
-      } else {
-        chargeState = 'normal';
-      }
     }
 
-    if (chargeState === 'overcharge') {
-      const extraOverchargeMs = Math.max(0, duration - config.CHARGE.maxDuration);
-      const overchargeRatio = Math.min(1, extraOverchargeMs / config.CHARGE.dirty.overchargeWindowMs);
-      engine.registerShot('dirty');
-      engine.spawnShellTo(p.targetX, p.targetY, 'dirty', p.palette, p.launchX, overchargeRatio, false, {
-        outcome: 'dirty',
-        overchargeRatio,
-        overchargeMs: extraOverchargeMs
-      });
-    } else if (chargeState === 'perfect') {
-      engine.registerShot('supernova');
-      engine.spawnShellTo(p.targetX, p.targetY, null, p.palette, p.launchX, 1.0, true, { outcome: 'perfect' });
+    const perfectThreshold = config.CHARGE.perfectReadyThreshold || 0.92;
+    if (charge >= perfectThreshold) {
+      // Perfect-ready: fires at full power. Supernova triggers only on target contact.
+      engine.registerShot('perfect-ready');
+      engine.spawnShellTo(p.targetX, p.targetY, null, p.palette, p.launchX, 1.0, true, { outcome: 'perfect-ready' });
     } else {
       engine.registerShot('normal');
       engine.spawnShellTo(p.targetX, p.targetY, null, p.palette, p.launchX, charge, charge >= config.CHARGE.prestigeThreshold, { outcome: 'normal' });

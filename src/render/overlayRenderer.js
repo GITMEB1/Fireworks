@@ -9,39 +9,30 @@ export function renderChargeVisuals({ ctx, now, activePointers, config, engine }
     if (duration < config.CHARGE.minDuration) return;
 
     let rawCharge = (duration - config.CHARGE.minDuration) / (config.CHARGE.maxDuration - config.CHARGE.minDuration);
-    let chargeState = 'normal';
-    if (rawCharge >= 1.0) {
-      chargeState = 'overcharge';
-      rawCharge = 1;
-    } else if (rawCharge >= 0.95 && rawCharge < 1.0) {
-      chargeState = 'perfect';
-    }
+    const perfectThreshold = config.CHARGE.perfectReadyThreshold || 0.92;
+    const isPerfectReady = rawCharge >= perfectThreshold;
+    rawCharge = Math.min(1, rawCharge);
 
     const ease = smoothstep01(rawCharge);
     let coreC = p.palette[0];
     let ringC = p.palette[1];
-    const isWhiteHot = chargeState === 'perfect';
-    const isDead = chargeState === 'overcharge';
 
-    if (isWhiteHot) {
+    if (isPerfectReady) {
       coreC = '255,255,255';
       ringC = p.palette[0];
-    } else if (isDead) {
-      coreC = '150,150,150';
-      ringC = '80,80,80';
     }
 
-    ctx.fillStyle = rgba(coreC, isDead ? 0.4 : 0.78);
+    ctx.fillStyle = rgba(coreC, 0.78);
     ctx.beginPath();
     ctx.arc(p.x, p.y, 2 + ease * 4.5, 0, Math.PI * 2);
     ctx.fill();
 
     const glowScale = chargeCfg.glowScale || 1;
     const ringScale = chargeCfg.ringScale || 1;
-    const glowRad = (isDead ? 10 + ease * 10 : 28 + ease * 95) * glowScale;
+    const glowRad = (28 + ease * 95) * glowScale;
     const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, glowRad);
-    g.addColorStop(0, rgba(coreC, isDead ? 0.1 : 0.15 + ease * 0.26));
-    g.addColorStop(0.45, rgba(ringC, isDead ? 0.02 : 0.05 + ease * 0.11));
+    g.addColorStop(0, rgba(coreC, 0.15 + ease * 0.26));
+    g.addColorStop(0.45, rgba(ringC, 0.05 + ease * 0.11));
     g.addColorStop(1, rgba(coreC, 0));
     ctx.fillStyle = g;
     ctx.beginPath();
@@ -51,7 +42,7 @@ export function renderChargeVisuals({ ctx, now, activePointers, config, engine }
     ctx.lineCap = 'round';
     const r1 = (14 + ease * 24) * ringScale;
     const a1 = now * 0.0032;
-    ctx.strokeStyle = rgba(ringC, isDead ? 0.1 : 0.38 + ease * 0.5);
+    ctx.strokeStyle = rgba(ringC, 0.38 + ease * 0.5);
     ctx.lineWidth = 1.4 + ease * 2.2;
     ctx.beginPath();
     ctx.arc(p.x, p.y, r1, a1, a1 + Math.PI);
@@ -59,39 +50,46 @@ export function renderChargeVisuals({ ctx, now, activePointers, config, engine }
 
     const r2 = (25 + ease * 46) * ringScale;
     const a2 = -now * 0.002;
-    ctx.strokeStyle = rgba(coreC, isDead ? 0.1 : 0.2 + ease * 0.6);
+    ctx.strokeStyle = rgba(coreC, 0.2 + ease * 0.6);
     ctx.lineWidth = 1 + ease * 1.5;
     ctx.beginPath();
     ctx.arc(p.x, p.y, r2, a2, a2 + Math.PI * 1.22);
     ctx.stroke();
 
     const orbitBoost = chargeCfg.orbitCountBoost || 0;
-    const orbitCount = isWhiteHot ? 6 + orbitBoost : (isDead ? 0 : Math.floor(2 + rawCharge * 2 + orbitBoost));
-    if (!isDead) {
-      for (let i = 0; i < orbitCount; i++) {
-        const ang = now * (0.002 + i * 0.00035) + i * (Math.PI / Math.max(1, orbitCount));
-        const rad = 10 + ease * (18 + i * 8);
-        ctx.fillStyle = rgba(ringC, 0.45 + ease * 0.4);
-        ctx.beginPath();
-        ctx.arc(p.x + Math.cos(ang) * rad, p.y + Math.sin(ang) * rad, 1 + ease * 1.7, 0, Math.PI * 2);
-        ctx.fill();
-      }
+    const orbitCount = isPerfectReady ? 6 + orbitBoost : Math.floor(2 + rawCharge * 2 + orbitBoost);
+    for (let i = 0; i < orbitCount; i++) {
+      const ang = now * (0.002 + i * 0.00035) + i * (Math.PI / Math.max(1, orbitCount));
+      const rad = 10 + ease * (18 + i * 8);
+      ctx.fillStyle = rgba(ringC, 0.45 + ease * 0.4);
+      ctx.beginPath();
+      ctx.arc(p.x + Math.cos(ang) * rad, p.y + Math.sin(ang) * rad, 1 + ease * 1.7, 0, Math.PI * 2);
+      ctx.fill();
     }
 
-    const sparkChance = ease * (isWhiteHot ? 1.5 : 0.85) * (chargeCfg.sparkChanceMult || 1);
-    if (!isDead && Math.random() < sparkChance) {
+    const sparkChance = ease * (isPerfectReady ? 1.5 : 0.85) * (chargeCfg.sparkChanceMult || 1);
+    if (Math.random() < sparkChance) {
       const sAng = rand(0, Math.PI * 2);
       const sDist = rand(r1, r2 + 12);
       const sLen = rand(4, 12);
-      ctx.strokeStyle = rgba('255,255,255', isWhiteHot ? 0.95 : 0.62);
-      ctx.lineWidth = isWhiteHot ? 1.5 : 1;
+      ctx.strokeStyle = rgba('255,255,255', isPerfectReady ? 0.95 : 0.62);
+      ctx.lineWidth = isPerfectReady ? 1.5 : 1;
       ctx.beginPath();
       ctx.moveTo(p.x + Math.cos(sAng) * sDist, p.y + Math.sin(sAng) * sDist);
       ctx.lineTo(p.x + Math.cos(sAng) * (sDist - sLen), p.y + Math.sin(sAng) * (sDist - sLen));
       ctx.stroke();
     }
 
-    if (engine && engine.state && p.targetX !== undefined && !isDead) {
+    // "PERFECT" label when charge reaches the perfect-ready zone
+    if (isPerfectReady) {
+      const pulseAlpha = 0.7 + Math.sin(now * 0.012) * 0.3;
+      ctx.fillStyle = rgba('255,255,255', pulseAlpha);
+      ctx.font = 'bold 14px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('PERFECT', p.x, p.y - r2 - 14);
+    }
+
+    if (engine && engine.state && p.targetX !== undefined) {
       const dist = Math.hypot(p.targetX - p.startX, p.targetY - p.startY);
       if (dist > 10) {
         const sx = p.launchX;
@@ -99,7 +97,7 @@ export function renderChargeVisuals({ ctx, now, activePointers, config, engine }
         const tx = p.targetX;
         const ty = p.targetY;
 
-        const prestige = chargeState === 'perfect';
+        const prestige = isPerfectReady;
         const timeToTarget = 48 * (prestige ? 1.05 : 1);
         const vx = (tx - sx) / timeToTarget;
         const vy = (ty - sy) / timeToTarget - 0.5 * config.gravity * timeToTarget;
@@ -131,7 +129,7 @@ export function renderChargeVisuals({ ctx, now, activePointers, config, engine }
         ctx.moveTo(tx, ty - crosshairRadius);
         ctx.lineTo(tx, ty + crosshairRadius);
         ctx.lineWidth = 2 + ease;
-        ctx.strokeStyle = rgba(isWhiteHot ? '255,255,255' : coreC, 0.4 + 0.6 * ease);
+        ctx.strokeStyle = rgba(isPerfectReady ? '255,255,255' : coreC, 0.4 + 0.6 * ease);
         ctx.stroke();
       }
     }
@@ -232,13 +230,7 @@ export function renderChargeVisuals({ ctx, now, activePointers, config, engine }
       ctx.fillRect(engine.state.width / 2 - 100, 140, 200 * feverProgress, 4);
     }
 
-    if (engine.state.overchargeCueTimer > 0) {
-      const cueAlpha = Math.min(1, engine.state.overchargeCueTimer / config.CHARGE.dirty.cueDurationMs);
-      ctx.fillStyle = rgba('190,175,145', cueAlpha * 0.85);
-      ctx.font = 'bold 26px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText('OVERCHARGED', engine.state.width / 2, 92);
-    }
+
   }
 
   ctx.globalCompositeOperation = 'source-over';
