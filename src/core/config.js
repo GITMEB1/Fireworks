@@ -27,9 +27,12 @@ export const CONFIG = {
     maxMultiplier: 2.25,
     maxVelMultiplier: 1.8,
     prestigeThreshold: 0.9,
-    perfectReadyThreshold: 0.92
+    perfectReadyThreshold: 0.92,
+    // === IMPROVEMENT 1: Wider perfect charge window + progressive feedback (skill feel boost) ===
+    perfectMinRatio: 0.68,
+    perfectMaxRatio: 0.97,
+    rampSparkMult: 2.5
   },
-
 
   RENDERER: {
     mode: 'canvas2d-baseline'
@@ -112,6 +115,10 @@ export const CONFIG = {
     pressurePerExpire: 22,
 
     pressureDecayPerSecond: 1.1,
+    // === IMPROVEMENT 2: Smoother pressure + grace window (less spiky, more readable) ===
+    pressureGraceWindowMs: 1200,
+    pressureSpikeForgiveness: 0.85,
+
     pressureRecoveryOnClear: 6,
     pressureRecoveryOnPerfect: 8,
     scorePerHit: 20,
@@ -159,7 +166,9 @@ export const CONFIG = {
     targetFragmentDrag: 0.965,
     targetFragmentGravityMult: 1.06,
     targetFragmentSpinMax: 0.11,
-    scoreShatterBonus: 30
+    scoreShatterBonus: 30,
+    // === IMPROVEMENT 3: Micro-breather on phase clear (progression feel + setup for levels) ===
+    breatherMsOnPhaseClear: 1200
   },
 
   PHYSICS: {
