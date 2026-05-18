@@ -163,7 +163,9 @@ export function createEngine({ config, palettes, state, audio, runtimeVNext = nu
       criticalTargets: 0,
       lastHitFeedback: '',
       lastHitFeedbackTimerMs: 0,
-      metrics: createObjectiveMetricsState(initialPressure)
+      metrics: createObjectiveMetricsState(initialPressure),
+      // IMPROVEMENT 3: breather timer for phase transitions
+      breatherTimerMs: 0
     };
   }
 
@@ -723,10 +725,23 @@ export function createEngine({ config, palettes, state, audio, runtimeVNext = nu
     run.lastHitFeedbackTimerMs = Math.max(0, run.lastHitFeedbackTimerMs - dtMs);
     if (run.lastHitFeedbackTimerMs === 0) run.lastHitFeedback = '';
 
+    // IMPROVED PRESSURE (2): Smoother decay + grace window near threshold
+    let decayRate = config.OBJECTIVE.pressureDecayPerSecond;
+    if (run.pressure > config.OBJECTIVE.warningPressure) {
+      decayRate *= config.OBJECTIVE.pressureSpikeForgiveness || 1.0;
+    }
+    run.pressure = clamp(run.pressure - decayRate * (dtMs / 1000), 0, config.OBJECTIVE.maxPressure);
+    markPressurePeak(run);
+
     run.phaseTimerMs = Math.max(0, run.phaseTimerMs - dtMs);
     run.spawnCooldownMs -= dtMs;
-    run.pressure = clamp(run.pressure - config.OBJECTIVE.pressureDecayPerSecond * (dtMs / 1000), 0, config.OBJECTIVE.maxPressure);
-    markPressurePeak(run);
+
+    if (run.breatherTimerMs > 0) {
+      run.breatherTimerMs -= dtMs;
+      state.timeDilation = 0.35; // micro-breather
+      run.objectiveText = `Phase ${run.phase - 1} complete — breathing room!`;
+      if (run.breatherTimerMs <= 0) state.timeDilation = 1.0;
+    }
 
     if (run.spawnCooldownMs <= 0) {
       spawnObjectiveTarget();
@@ -758,6 +773,7 @@ export function createEngine({ config, palettes, state, audio, runtimeVNext = nu
       run.phaseTimerMs = config.OBJECTIVE.phaseDurationMs;
       run.phaseClearTarget = config.OBJECTIVE.phaseClearTargetBase + (run.phase - 1) * config.OBJECTIVE.phaseClearTargetStep;
       run.pressure = clamp(run.pressure - 12, 0, config.OBJECTIVE.maxPressure);
+      run.breatherTimerMs = config.OBJECTIVE.breatherMsOnPhaseClear || 1200; // IMPROVEMENT 3
       markPressurePeak(run);
       run.objectiveText = `Phase ${run.phase} started`;
     }
@@ -782,13 +798,11 @@ export function createEngine({ config, palettes, state, audio, runtimeVNext = nu
     updateObjectiveLoop(timeScale);
     flushLaunchQueue(now);
     
-    // Update Fever timer (dt is roughly equivalent to timeScale in ms contexts, though Fireworks engine handles dt in main loop, we decrement based on timeScale * 16.66)
     if (state.feverTimer > 0) {
       state.feverTimer -= timeScale * 16.66;
     }
 
-
-    // Sputter sparks for active pointers
+    // IMPROVED CHARGE TIMING (1): Wider perfect window + ramp sparks for better skill feedback
     let maxCharge = 0;
     if (state.activePointers && state.activePointers.size > 0) {
       for (const p of state.activePointers.values()) {
@@ -799,6 +813,16 @@ export function createEngine({ config, palettes, state, audio, runtimeVNext = nu
         const duration = now - p.startTime;
         const charge = Math.min(1.0, Math.max(0, (duration - config.CHARGE.minDuration) / (config.CHARGE.maxDuration - config.CHARGE.minDuration)));
         if (charge > maxCharge) maxCharge = charge;
+
+        // New progressive perfect ramp using new config keys
+        const perfectMin = config.CHARGE.perfectMinRatio || 0.75;
+        const perfectMax = config.CHARGE.perfectMaxRatio || 0.95;
+        if (charge >= perfectMin && charge <= perfectMax) {
+          // ramp sparks for approaching perfect
+          if (Math.random() < 0.45 * (config.CHARGE.rampSparkMult || 1)) {
+            engine.spawnContinuousSpark(p.x, p.y, '255,255,255', rand(-2.5, 2.5), rand(-2.5, 2.5));
+          }
+        }
       }
     }
     audio.updateCharge(maxCharge);
