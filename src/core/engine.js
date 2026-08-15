@@ -4,6 +4,16 @@ import { createShellRegistry } from '../shells/registry.js';
 import { createLaunchPatternRunner } from '../patterns/launchPatterns.js';
 import { createDeathBehaviorDispatcher } from '../effects/deathBehaviors.js';
 import { RUNTIME_EVENT_TYPES } from '../runtime-vnext/contracts/runtimeEventTypes.js';
+import {
+  advancePhaseBreather,
+  advancePressureGrace,
+  applyObjectivePressure,
+  applyPassivePressureDecay,
+  beginPhaseBreather,
+  getChargeState,
+  getRampSparkChance,
+  isPressureFailureBlocked
+} from './mechanicsContract.js';
 
 export function createEngine({ config, palettes, state, audio, runtimeVNext = null }) {
   const pools = { fireworks: [], particles: [], smokes: [], glows: [], embers: [], shockwaves: [], targets: [], targetFragments: [] };
@@ -80,6 +90,12 @@ export function createEngine({ config, palettes, state, audio, runtimeVNext = nu
   function markPressurePeak(run) {
     if (!run?.metrics) return;
     run.metrics.pressurePeak = Math.max(run.metrics.pressurePeak, run.pressure);
+  }
+
+  function changeObjectivePressure(run, delta) {
+    const result = applyObjectivePressure(run, delta, config.OBJECTIVE);
+    markPressurePeak(run);
+    return result;
   }
 
   function endObjectiveRun(outcome, reason = 'unknown') {
@@ -164,8 +180,10 @@ export function createEngine({ config, palettes, state, audio, runtimeVNext = nu
       lastHitFeedback: '',
       lastHitFeedbackTimerMs: 0,
       metrics: createObjectiveMetricsState(initialPressure),
-      // IMPROVEMENT 3: breather timer for phase transitions
-      breatherTimerMs: 0
+      pressureGraceRemainingMs: 0,
+      pressureGraceArmed: true,
+      breatherTimerMs: 0,
+      breatherCompletedPhase: null
     };
   }
 
@@ -477,8 +495,7 @@ export function createEngine({ config, palettes, state, audio, runtimeVNext = nu
     run.totalClears += 1;
     const recovery = run.lastShotType === 'perfect-ready' ? config.OBJECTIVE.pressureRecoveryOnPerfect : config.OBJECTIVE.pressureRecoveryOnClear;
     const criticalRecovery = hitMeta.wasCritical ? config.OBJECTIVE.pressureRecoveryCriticalBonus : 0;
-    run.pressure = clamp(run.pressure - recovery - criticalRecovery, 0, config.OBJECTIVE.maxPressure);
-    markPressurePeak(run);
+    changeObjectivePressure(run, -recovery - criticalRecovery);
 
     run.lastHitFeedback = hitMeta.hitQuality === 'direct' ? 'Direct shatter' : 'Target shattered';
     run.lastHitFeedbackTimerMs = 960;
@@ -515,7 +532,12 @@ export function createEngine({ config, palettes, state, audio, runtimeVNext = nu
   function registerShot(type) {
     if (state.objectiveRun) {
       state.objectiveRun.lastShotType = type;
-      markPressurePeak(state.objectiveRun);
+      if (type === 'dirty' && state.objectiveRun.status === 'running') {
+        changeObjectivePressure(state.objectiveRun, config.OBJECTIVE.pressurePerDirtyShot || 0);
+        if (state.objectiveRun.metrics) state.objectiveRun.metrics.dirtyShotCount += 1;
+      } else {
+        markPressurePeak(state.objectiveRun);
+      }
     }
 
     emitRuntime(RUNTIME_EVENT_TYPES.shotRegistered, {
@@ -646,12 +668,11 @@ export function createEngine({ config, palettes, state, audio, runtimeVNext = nu
             state.objectiveRun.comboTimerMs = 0;
             state.objectiveRun.lastHitFeedback = expiredTarget?.kind === 'priority' ? 'Priority target missed' : 'Target expired';
             state.objectiveRun.lastHitFeedbackTimerMs = 900;
-            state.objectiveRun.pressure = clamp(state.objectiveRun.pressure + config.OBJECTIVE.pressurePerExpire * expirePressureMult, 0, config.OBJECTIVE.maxPressure);
+            changeObjectivePressure(state.objectiveRun, config.OBJECTIVE.pressurePerExpire * expirePressureMult);
             if (state.objectiveRun.metrics) {
               state.objectiveRun.metrics.targetExpiryCount += 1;
               if (expiredTarget?.kind === 'priority') state.objectiveRun.metrics.priorityExpiryCount += 1;
             }
-            markPressurePeak(state.objectiveRun);
             emitRuntime(RUNTIME_EVENT_TYPES.targetExpired, {
               runId: state.objectiveRun?.metrics?.runId || null,
               targetKind: expiredTarget?.kind || 'normal',
@@ -710,14 +731,17 @@ export function createEngine({ config, palettes, state, audio, runtimeVNext = nu
     spawnTarget(x, y, radius, mass, pick(palettes), objectiveProfile);
   }
 
-  function updateObjectiveLoop(timeScale) {
+  function updateObjectiveLoop(timeScale, realDtMs) {
     const run = state.objectiveRun;
-    if (!config.OBJECTIVE.enabled || !run) return;
+    if (!config.OBJECTIVE.enabled || !run) return { breathing: false };
 
     if (run.status !== 'running') {
       run.objectiveText = run.status === 'failed' ? 'Run failed - press R or tap to restart' : 'Phase complete - survive the next wave';
-      return;
+      return { breathing: false };
     }
+
+    advancePressureGrace(run, realDtMs, config.OBJECTIVE);
+    if (advancePhaseBreather(run, realDtMs)) return { breathing: true };
 
     const dtMs = timeScale * 16.666;
     run.comboTimerMs = Math.max(0, run.comboTimerMs - dtMs);
@@ -725,23 +749,10 @@ export function createEngine({ config, palettes, state, audio, runtimeVNext = nu
     run.lastHitFeedbackTimerMs = Math.max(0, run.lastHitFeedbackTimerMs - dtMs);
     if (run.lastHitFeedbackTimerMs === 0) run.lastHitFeedback = '';
 
-    // IMPROVED PRESSURE (2): Smoother decay + grace window near threshold
-    let decayRate = config.OBJECTIVE.pressureDecayPerSecond;
-    if (run.pressure > config.OBJECTIVE.warningPressure) {
-      decayRate *= config.OBJECTIVE.pressureSpikeForgiveness || 1.0;
-    }
-    run.pressure = clamp(run.pressure - decayRate * (dtMs / 1000), 0, config.OBJECTIVE.maxPressure);
-    markPressurePeak(run);
+    applyPassivePressureDecay(run, dtMs, config.OBJECTIVE);
 
     run.phaseTimerMs = Math.max(0, run.phaseTimerMs - dtMs);
     run.spawnCooldownMs -= dtMs;
-
-    if (run.breatherTimerMs > 0) {
-      run.breatherTimerMs -= dtMs;
-      state.timeDilation = 0.35; // micro-breather
-      run.objectiveText = `Phase ${run.phase - 1} complete — breathing room!`;
-      if (run.breatherTimerMs <= 0) state.timeDilation = 1.0;
-    }
 
     if (run.spawnCooldownMs <= 0) {
       spawnObjectiveTarget();
@@ -758,6 +769,17 @@ export function createEngine({ config, palettes, state, audio, runtimeVNext = nu
     run.urgentTargets = urgent;
     run.criticalTargets = critical;
 
+    if (run.phaseClears >= run.phaseClearTarget) {
+      const completedPhase = run.phase;
+      run.phase += 1;
+      run.phaseClears = 0;
+      run.phaseTimerMs = config.OBJECTIVE.phaseDurationMs;
+      run.phaseClearTarget = config.OBJECTIVE.phaseClearTargetBase + (run.phase - 1) * config.OBJECTIVE.phaseClearTargetStep;
+      changeObjectivePressure(run, -12);
+      beginPhaseBreather(run, config.OBJECTIVE, completedPhase);
+      return { breathing: true };
+    }
+
     const remaining = Math.max(0, run.phaseClearTarget - run.phaseClears);
     if (urgent > 0) {
       run.objectiveText = `Clear ${remaining} | Urgent ${urgent}`;
@@ -767,42 +789,31 @@ export function createEngine({ config, palettes, state, audio, runtimeVNext = nu
       run.objectiveText = `Clear ${remaining} target${remaining === 1 ? '' : 's'} this phase`;
     }
 
-    if (run.phaseClears >= run.phaseClearTarget) {
-      run.phase += 1;
-      run.phaseClears = 0;
-      run.phaseTimerMs = config.OBJECTIVE.phaseDurationMs;
-      run.phaseClearTarget = config.OBJECTIVE.phaseClearTargetBase + (run.phase - 1) * config.OBJECTIVE.phaseClearTargetStep;
-      run.pressure = clamp(run.pressure - 12, 0, config.OBJECTIVE.maxPressure);
-      run.breatherTimerMs = config.OBJECTIVE.breatherMsOnPhaseClear || 1200; // IMPROVEMENT 3
-      markPressurePeak(run);
-      run.objectiveText = `Phase ${run.phase} started`;
-    }
-
     if (run.phaseTimerMs <= 0 && run.phaseClears < run.phaseClearTarget) {
-      run.pressure = clamp(run.pressure + config.OBJECTIVE.pressurePerExpire * 0.8, 0, config.OBJECTIVE.maxPressure);
-      markPressurePeak(run);
+      changeObjectivePressure(run, config.OBJECTIVE.pressurePerExpire * 0.8);
       run.phaseTimerMs = config.OBJECTIVE.phaseDurationMs * 0.35;
       run.objectiveText = 'Phase overtime: pressure rising';
     }
 
-    if (run.pressure >= config.OBJECTIVE.failPressure) {
+    if (run.pressure >= config.OBJECTIVE.failPressure && !isPressureFailureBlocked(run)) {
       run.status = 'failed';
       endObjectiveRun('fail', 'pressure-threshold');
       state.activePointers.clear();
       state.scheduledLaunches = [];
       activeCounts.fireworks = 0;
     }
+
+    return { breathing: false };
   }
 
-  function update(timeScale, now) {
-    updateObjectiveLoop(timeScale);
+  function update(timeScale, now, realDtMs = timeScale * 16.666) {
+    const objectiveTick = updateObjectiveLoop(timeScale, realDtMs);
     flushLaunchQueue(now);
     
     if (state.feverTimer > 0) {
       state.feverTimer -= timeScale * 16.66;
     }
 
-    // IMPROVED CHARGE TIMING (1): Wider perfect window + ramp sparks for better skill feedback
     let maxCharge = 0;
     if (state.activePointers && state.activePointers.size > 0) {
       for (const p of state.activePointers.values()) {
@@ -811,23 +822,18 @@ export function createEngine({ config, palettes, state, audio, runtimeVNext = nu
           engine.spawnContinuousSpark(p.x, p.y, color, rand(-1, 1), rand(-1, 1));
         }
         const duration = now - p.startTime;
-        const charge = Math.min(1.0, Math.max(0, (duration - config.CHARGE.minDuration) / (config.CHARGE.maxDuration - config.CHARGE.minDuration)));
-        if (charge > maxCharge) maxCharge = charge;
+        const chargeState = getChargeState(duration, config.CHARGE);
+        if (chargeState.ratio > maxCharge) maxCharge = chargeState.ratio;
 
-        // New progressive perfect ramp using new config keys
-        const perfectMin = config.CHARGE.perfectMinRatio || 0.75;
-        const perfectMax = config.CHARGE.perfectMaxRatio || 0.95;
-        if (charge >= perfectMin && charge <= perfectMax) {
-          // ramp sparks for approaching perfect
-          if (Math.random() < 0.45 * (config.CHARGE.rampSparkMult || 1)) {
-            engine.spawnContinuousSpark(p.x, p.y, '255,255,255', rand(-2.5, 2.5), rand(-2.5, 2.5));
-          }
+        const rampSparkChance = getRampSparkChance(chargeState, config.CHARGE, state.qualityScale);
+        if (Math.random() < rampSparkChance) {
+          engine.spawnContinuousSpark(p.x, p.y, '255,255,255', rand(-2.5, 2.5), rand(-2.5, 2.5));
         }
       }
     }
     audio.updateCharge(maxCharge);
 
-    compactAndUpdate('targets', timeScale);
+    compactAndUpdate('targets', objectiveTick.breathing ? 0 : timeScale);
     compactAndUpdate('fireworks', timeScale);
     compactAndUpdate('particles', timeScale);
     compactAndUpdate('smokes', timeScale);
@@ -835,6 +841,7 @@ export function createEngine({ config, palettes, state, audio, runtimeVNext = nu
     compactAndUpdate('embers', timeScale);
     compactAndUpdate('shockwaves', timeScale);
     compactAndUpdate('targetFragments', timeScale);
+    return objectiveTick;
   }
 
   engine.resolveFireworkContact = resolveFireworkContact;

@@ -1,4 +1,5 @@
 import { rand, rgba, smoothstep01 } from '../core/utils.js';
+import { getChargeState } from '../core/mechanicsContract.js';
 
 export function renderChargeVisuals({ ctx, now, activePointers, config, engine }) {
   const chargeCfg = config.CHARGE_VISUALS || {};
@@ -8,10 +9,9 @@ export function renderChargeVisuals({ ctx, now, activePointers, config, engine }
     const duration = now - p.startTime;
     if (duration < config.CHARGE.minDuration) return;
 
-    let rawCharge = (duration - config.CHARGE.minDuration) / (config.CHARGE.maxDuration - config.CHARGE.minDuration);
-    const perfectThreshold = config.CHARGE.perfectReadyThreshold || 0.92;
-    const isPerfectReady = rawCharge >= perfectThreshold;
-    rawCharge = Math.min(1, rawCharge);
+    const chargeState = getChargeState(duration, config.CHARGE);
+    const rawCharge = chargeState.ratio;
+    const { isPerfectReady, isLate } = chargeState;
 
     const ease = smoothstep01(rawCharge);
     let coreC = p.palette[0];
@@ -20,6 +20,9 @@ export function renderChargeVisuals({ ctx, now, activePointers, config, engine }
     if (isPerfectReady) {
       coreC = '255,255,255';
       ringC = p.palette[0];
+    } else if (isLate) {
+      coreC = '255,184,92';
+      ringC = '255,110,80';
     }
 
     ctx.fillStyle = rgba(coreC, 0.78);
@@ -67,7 +70,7 @@ export function renderChargeVisuals({ ctx, now, activePointers, config, engine }
       ctx.fill();
     }
 
-    const sparkChance = ease * (isPerfectReady ? 1.5 : 0.85) * (chargeCfg.sparkChanceMult || 1);
+    const sparkChance = Math.min(1, ease * (isPerfectReady ? 1.5 : 0.85) * (chargeCfg.sparkChanceMult || 1));
     if (Math.random() < sparkChance) {
       const sAng = rand(0, Math.PI * 2);
       const sDist = rand(r1, r2 + 12);
@@ -80,13 +83,12 @@ export function renderChargeVisuals({ ctx, now, activePointers, config, engine }
       ctx.stroke();
     }
 
-    // "PERFECT" label when charge reaches the perfect-ready zone
-    if (isPerfectReady) {
+    if (isPerfectReady || isLate) {
       const pulseAlpha = 0.7 + Math.sin(now * 0.012) * 0.3;
-      ctx.fillStyle = rgba('255,255,255', pulseAlpha);
+      ctx.fillStyle = rgba(isPerfectReady ? '255,255,255' : '255,184,92', pulseAlpha);
       ctx.font = 'bold 14px sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('PERFECT', p.x, p.y - r2 - 14);
+      ctx.fillText(isPerfectReady ? 'PERFECT' : 'LATE — FULL POWER', p.x, p.y - r2 - 14);
     }
 
     if (engine && engine.state && p.targetX !== undefined) {
@@ -97,7 +99,7 @@ export function renderChargeVisuals({ ctx, now, activePointers, config, engine }
         const tx = p.targetX;
         const ty = p.targetY;
 
-        const prestige = isPerfectReady;
+        const prestige = rawCharge >= config.CHARGE.prestigeThreshold;
         const timeToTarget = 48 * (prestige ? 1.05 : 1);
         const vx = (tx - sx) / timeToTarget;
         const vy = (ty - sy) / timeToTarget - 0.5 * config.gravity * timeToTarget;

@@ -1,6 +1,7 @@
 import { createConfig, PALETTES } from '../core/config.js';
 import { create2DContext } from '../core/context2d.js';
 import { pick, rand } from '../core/utils.js';
+import { composeTimeDilation, getObjectiveBreatherScale } from '../core/mechanicsContract.js';
 import { createAppState } from './appState.js';
 import { createEngine } from '../core/engine.js';
 import { createResizeSystem } from '../systems/resizeSystem.js';
@@ -116,7 +117,9 @@ export function createFireworksApp({ canvas, hintEl, statusEl, configOverrides =
       }
     }
 
-    engine.update(timeScale * state.timeDilation, now);
+    const breatherScale = getObjectiveBreatherScale(state.objectiveRun, config.OBJECTIVE);
+    const composedDilation = composeTimeDilation(state.timeDilation, breatherScale);
+    engine.update(timeScale * composedDilation, now, dt);
 
     const frame = renderer.composeFrame
       ? renderer.composeFrame({ dt, now, state })

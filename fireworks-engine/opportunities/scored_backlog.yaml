@@ -7,6 +7,8 @@ scoring_scale:
 items:
   - id: OPP-002
     title: Overcharge Dirty Burst
+    status: superseded
+    superseded_by: "Bounded perfect-ready timing with a non-destructive late full-power outcome."
     delight_gain: 5
     spectacle_gain: 4
     clarity_gain: 4
@@ -18,8 +20,8 @@ items:
     seam_count: 3
     testability: 4
     prototype_first: false
-    ship_recommendation: ship
-    rationale: "Directly addresses known frustration at 100% charge while preserving skill tension."
+    ship_recommendation: defer
+    rationale: "The destructive overcharge path was removed. Do not restore Dirty Burst without new play evidence that it improves the current bounded timing contract."
 
   - id: OPP-004
     title: Procedural Audio Tension Layer

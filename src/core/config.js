@@ -27,11 +27,11 @@ export const CONFIG = {
     maxMultiplier: 2.25,
     maxVelMultiplier: 1.8,
     prestigeThreshold: 0.9,
-    perfectReadyThreshold: 0.92,
-    // === IMPROVEMENT 1: Wider perfect charge window + progressive feedback (skill feel boost) ===
+    // Perfect-ready is a bounded timing window. Releasing later remains a
+    // full-power normal shot rather than restoring the removed fizzle path.
     perfectMinRatio: 0.68,
     perfectMaxRatio: 0.97,
-    rampSparkMult: 2.5
+    rampSparkChanceMax: 0.28
   },
 
   RENDERER: {
@@ -113,9 +113,9 @@ export const CONFIG = {
     warningPressure: 72,
     failPressure: 100,
     pressurePerExpire: 22,
+    pressurePerDirtyShot: 7,
 
     pressureDecayPerSecond: 1.1,
-    // === IMPROVEMENT 2: Smoother pressure + grace window (less spiky, more readable) ===
     pressureGraceWindowMs: 1200,
     pressureSpikeForgiveness: 0.85,
 
@@ -167,8 +167,8 @@ export const CONFIG = {
     targetFragmentGravityMult: 1.06,
     targetFragmentSpinMax: 0.11,
     scoreShatterBonus: 30,
-    // === IMPROVEMENT 3: Micro-breather on phase clear (progression feel + setup for levels) ===
-    breatherMsOnPhaseClear: 1200
+    breatherMsOnPhaseClear: 1200,
+    breatherTimeScale: 0.35
   },
 
   PHYSICS: {
