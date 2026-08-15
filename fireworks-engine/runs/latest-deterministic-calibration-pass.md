@@ -23,7 +23,7 @@ Replace fragile browser-driven calibration with a deterministic repo-local runne
 
 ## Artifact metadata
 - generated at: 2026-08-15T15:33:00.593Z
-- source revision: d27c17ec564384c74bf36e4ff31320ed806c4157
+- source revision: 3ea0c856efba16183150e42b5aab4af491fee414
 - manifest: fireworks-engine/runs/2026-08-15-deterministic-calibration-manifest.json
 
 ## Scenario matrix

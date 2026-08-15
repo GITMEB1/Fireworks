@@ -1,6 +1,6 @@
 {
   "generatedAt": "2026-08-15T15:33:00.593Z",
-  "sourceRevision": "d27c17ec564384c74bf36e4ff31320ed806c4157",
+  "sourceRevision": "3ea0c856efba16183150e42b5aab4af491fee414",
   "runsPerScenario": 10,
   "scenarioIds": [
     "desktop-high-quality",
