@@ -1,54 +1,60 @@
-# Walkthrough: Perfect Charge Supernova Update
+# Walkthrough: Charge, Supernova, Pressure and Phase Flow
 
-This update enhances the Fireworks simulator with a skill-based "Perfect Charge" mechanic and high-impact visual feedback (juiced effects).
+Fireworks uses one shared mechanics contract so the input outcome, charge cue and gameplay reward stay aligned.
 
-## New Features
+## Charge timing
 
-### 1. The "Sweet Spot" Mechanic
-Holding a click now transitions through three distinct charge states:
-- **Normal (0-94%):** Standard fireworks.
-- **Perfect Charge (95-99%):** The charge indicator turns **White-Hot**. Releasing here triggers a **Supernova**.
-- **Overcharge (100%+):** Holding too long kills the charge. The indicator turns dull grey and shrinks. Releasing here results in a **Fizzle**.
+Holding a pointer builds a clamped charge ratio after the minimum hold duration:
 
-### 2. Supernova Visuals
-When a Supernova is triggered, several "juice" effects activate simultaneously:
-- **Time Dilation:** Global time slows to 0.1x for a brief moment, creating a "hit pause" feel at the apex.
-- **Screen Shake:** The entire canvas vibrates violently, giving the explosion physical weight.
-- **Color Flash:** A full-screen additive flash of the firework's primary color burns the effect into the background.
+- **Normal (below 68%):** launches with the accumulated power.
+- **Perfect-ready (68%–97%, inclusive):** the indicator turns white-hot and the release launches at full power.
+- **Late (above 97%):** the indicator turns amber and says `LATE — FULL POWER`; the release remains a full-power normal shot. The removed fizzle/overburn penalty does not return.
 
-### 4. Dynamic Bloom Filter
-The visual fidelity has been upgraded with a reactive bloom pass:
-- **Reactive Intensity:** The glow intensity scales dynamically based on particle counts and shockwave impacts.
-- **Hit Punch:** Supernovas and flash events drive a temporary "over-bloom" that decays naturally, making explosions feel more physical.
-- **Adaptive Quality:** The effect automatically adjusts its resolution and blur radius based on the engine's quality scaling to preserve performance.
+The same classifier in `src/core/mechanicsContract.js` drives input, the overlay and progressive charge sparks. A perfect-ready launch becomes a Supernova only when it makes direct target contact.
 
-### 5. The Fizzle Penalty
-Overcharged shots launch a projectile that fails to explode properly, emitting only grey smoke and weak sparks, creating a clear risk/reward loop.
+## Supernova feedback
 
-## Implementation Details
+A confirmed Supernova triggers:
 
-### Core Engine (`src/core/engine.js`)
-- Added `triggerSupernova(color)` to the engine API.
-- This function sets global timers in `state` for dilation, shake, and flash.
+- 0.1× cinematic time dilation for 300 ms;
+- screen shake and a brief colour flash;
+- a short hit-stop and bass drop;
+- combo/Fever progression.
 
-### Input System (`src/systems/inputSystem.js`)
-- Revised `endInteraction` to calculate charge states.
-- Replaced the simple charge clamp with logic to branch between `fizzle`, `perfect`, and `normal` shell spawns.
+Phase-breather slowdown is composed with this cinematic channel. The stronger Supernova slowdown takes priority instead of being overwritten.
 
-### UI Rendering (`src/render/overlayRenderer.js`)
-- Updated `renderChargeVisuals` to provide visual feedback for the new states.
-- The "White-Hot" effect increases orbit counts and spark frequency to signal power.
+## Objective pressure
 
-### Renderer (`src/render/renderer.js`)
-- Implemented the dynamic bloom pass logic.
-- Linked `bloomIntensity` and `blurRadius` to `engine.activeCounts` and `state.flashTimer`.
+Positive pressure impulses—target expiry, dirty shots and overtime—flow through one helper:
 
-### Main Loop (`src/app/createFireworksApp.js`)
-- Injected time dilation and screen shake logic into the `loop` function.
-- Time dilation affects the `engine.update` timestep, while screen shake applies a randomized translation to the `ctx` before rendering.
+- `pressureSpikeForgiveness: 0.85` reduces each positive impulse by 15%;
+- crossing the warning threshold starts a 1,200 ms failure grace period;
+- the grace period does not refresh while pressure stays above warning;
+- it re-arms only after pressure falls below the warning threshold;
+- passive decay and clear recovery remain separate negative pressure changes.
+
+## Phase breather
+
+Clearing a phase starts a 1,200 ms real-time breather:
+
+- the completed-phase message remains visible for the full interval;
+- target spawning, target lifetime and the phase clock pause;
+- non-target spectacle continues at the configured breather scale;
+- the next phase resumes once, with no duplicate phase increment.
+
+## Rendering and performance
+
+- Charge-ramp particle probability is clamped to `0..1` and scaled by runtime quality.
+- Reactive bloom, target readability, adaptive quality and reduced-motion behaviour remain unchanged.
+- Late timing uses an amber cue without adding a destructive outcome or a new shell family.
 
 ## Verification
-- **Manual Test:** Hold click until the indicator turns white; release for Supernova.
-- **Manual Test:** Hold click until the indicator turns grey; release for Fizzle.
-- **Manual Test:** Observe the intensified "glow" during large explosions or Supernovas compared to single rocket launches.
-- **Manual Test:** Verify that normal clicking still produces standard fireworks.
+
+Run:
+
+```bash
+npm ci
+npm run validate
+```
+
+`npm run validate` executes the focused mechanics-contract tests before the deterministic calibration lane. Browser observation is still required for subjective feel, mobile rendering and physical-device performance claims.

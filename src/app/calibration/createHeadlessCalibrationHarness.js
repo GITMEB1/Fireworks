@@ -6,6 +6,11 @@ import { createRuntimeBudgetManager } from '../../runtime-vnext/contracts/runtim
 import { createRunMetricsCollector } from '../runMetricsCollector.js';
 import { withDeterministicRandom } from '../../core/deterministicRandom.js';
 import { getRuntimeProfileById } from '../runtimeProfiles.js';
+import {
+  composeTimeDilation,
+  getChargeState,
+  getObjectiveBreatherScale
+} from '../../core/mechanicsContract.js';
 
 const FRAME_MS = 16.666;
 const MAX_RUN_MS = 70000;
@@ -83,7 +88,8 @@ export function runDeterministicCalibrationScenario({ scenario, runIndex }) {
 
     while (now < MAX_RUN_MS && state.objectiveRun?.status === 'running') {
       now += FRAME_MS;
-      engine.update(1, now);
+      const breatherScale = getObjectiveBreatherScale(state.objectiveRun, config.OBJECTIVE);
+      engine.update(composeTimeDilation(state.timeDilation, breatherScale), now, FRAME_MS);
       collector.sampleFrame();
 
       if (now >= nextActionAt) {
@@ -119,9 +125,13 @@ function executePlayerAction({ engine, state, scenario, now }) {
     return;
   }
 
-  const shotType = shotRoll < scenario.strategy.dirtyShotChance + scenario.strategy.supernovaChance
-    ? 'supernova'
-    : 'normal';
+  const isPerfectAttempt = shotRoll < scenario.strategy.dirtyShotChance + scenario.strategy.perfectReadyChance;
+  const chargeRatio = isPerfectAttempt
+    ? (engine.config.CHARGE.perfectMinRatio + engine.config.CHARGE.perfectMaxRatio) / 2
+    : engine.config.CHARGE.perfectMinRatio * 0.72;
+  const chargeDuration = engine.config.CHARGE.minDuration
+    + chargeRatio * (engine.config.CHARGE.maxDuration - engine.config.CHARGE.minDuration);
+  const shotType = getChargeState(chargeDuration, engine.config.CHARGE).outcome;
   engine.registerShot(shotType);
 
   if (Math.random() < scenario.strategy.missChance) return;
@@ -186,7 +196,7 @@ function resolveImpactPoint(target, hitQuality) {
 
 function resolveImpactIntensity({ target, shotType, hitQuality, scenario }) {
   const isCritical = target.healthState === 'critical';
-  const base = shotType === 'supernova'
+  const base = shotType === 'perfect-ready'
     ? 0.82 + Math.random() * 0.28
     : 0.52 + Math.random() * 0.24;
   const qualityAdjust = hitQuality === 'direct' ? 0.18 : (hitQuality === 'glancing' ? -0.16 : 0);
@@ -200,7 +210,7 @@ function shouldFollowThrough({ target, shotType, scenario }) {
   if (shotType === 'dirty') return false;
   const remainingHealthRatio = target.maxHealth > 0 ? target.health / target.maxHealth : 0;
   if (remainingHealthRatio <= 0) return false;
-  const baseChance = shotType === 'supernova' ? 0.72 : 0.42;
+  const baseChance = shotType === 'perfect-ready' ? 0.72 : 0.42;
   const priorityBoost = target.kind === 'priority' ? 0.08 : 0;
   const lowHealthBoost = remainingHealthRatio < 0.48 ? 0.18 : 0;
   const scenarioPenalty = scenario.id === 'low-end-emulation' ? 0.06 : 0;

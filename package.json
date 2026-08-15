@@ -7,8 +7,9 @@
   "scripts": {
     "start": "http-server . -p 8080",
     "dev": "http-server . -p 3000",
+    "test:mechanics": "node --test tests/mechanics-contract.test.mjs",
     "calibrate": "node scripts/run-deterministic-calibration.mjs",
-    "validate": "npm run calibrate"
+    "validate": "npm run test:mechanics && npm run calibrate"
   },
   "dependencies": {
     "http-server": "^14.1.1"

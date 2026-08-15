@@ -11,7 +11,7 @@ export const CALIBRATION_SCENARIOS = [
     strategy: {
       directHitChance: 0.52,
       glancingHitChance: 0.12,
-      supernovaChance: 0.24,
+      perfectReadyChance: 0.24,
       dirtyShotChance: 0.08,
       missChance: 0.08,
       finishBoost: 0.2,
@@ -30,7 +30,7 @@ export const CALIBRATION_SCENARIOS = [
     strategy: {
       directHitChance: 0.49,
       glancingHitChance: 0.14,
-      supernovaChance: 0.22,
+      perfectReadyChance: 0.22,
       dirtyShotChance: 0.1,
       missChance: 0.1,
       finishBoost: 0.18,
@@ -49,7 +49,7 @@ export const CALIBRATION_SCENARIOS = [
     strategy: {
       directHitChance: 0.47,
       glancingHitChance: 0.15,
-      supernovaChance: 0.18,
+      perfectReadyChance: 0.18,
       dirtyShotChance: 0.1,
       missChance: 0.1,
       finishBoost: 0.16,
@@ -68,7 +68,7 @@ export const CALIBRATION_SCENARIOS = [
     strategy: {
       directHitChance: 0.42,
       glancingHitChance: 0.18,
-      supernovaChance: 0.14,
+      perfectReadyChance: 0.14,
       dirtyShotChance: 0.12,
       missChance: 0.14,
       finishBoost: 0.12,

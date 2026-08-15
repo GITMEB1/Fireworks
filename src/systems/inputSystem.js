@@ -1,4 +1,5 @@
 import { pick, rand } from '../core/utils.js';
+import { getChargeState } from '../core/mechanicsContract.js';
 
 export function createInputSystem({ canvas, hintEl, statusEl, palettes, state, config, engine }) {
   function beginInteraction(pointerId, x, y) {
@@ -60,21 +61,24 @@ export function createInputSystem({ canvas, hintEl, statusEl, palettes, state, c
     state.activePointers.delete(pointerId);
 
     const duration = performance.now() - p.startTime;
-    let charge = 0;
+    const chargeState = getChargeState(duration, config.CHARGE);
 
-    if (duration >= config.CHARGE.minDuration) {
-      const rawCharge = (duration - config.CHARGE.minDuration) / (config.CHARGE.maxDuration - config.CHARGE.minDuration);
-      charge = Math.min(1, rawCharge);
-    }
-
-    const perfectThreshold = config.CHARGE.perfectReadyThreshold || 0.92;
-    if (charge >= perfectThreshold) {
+    if (chargeState.isPerfectReady) {
       // Perfect-ready: fires at full power. Supernova triggers only on target contact.
       engine.registerShot('perfect-ready');
       engine.spawnShellTo(p.targetX, p.targetY, null, p.palette, p.launchX, 1.0, true, { outcome: 'perfect-ready' });
     } else {
       engine.registerShot('normal');
-      engine.spawnShellTo(p.targetX, p.targetY, null, p.palette, p.launchX, charge, charge >= config.CHARGE.prestigeThreshold, { outcome: 'normal' });
+      engine.spawnShellTo(
+        p.targetX,
+        p.targetY,
+        null,
+        p.palette,
+        p.launchX,
+        chargeState.launchCharge,
+        chargeState.launchCharge >= config.CHARGE.prestigeThreshold,
+        { outcome: 'normal', chargeTiming: chargeState.isLate ? 'late' : 'on-time' }
+      );
     }
   }
 
